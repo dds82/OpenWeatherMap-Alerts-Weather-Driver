@@ -172,6 +172,10 @@ metadata {
 		attribute 'forecast_text2', sSTR
 		attribute 'condition_icon_url1', sSTR
 		attribute 'condition_icon_url2', sSTR
+        attribute 'temp1hr', sNUM
+        attribute 'temp2hr', sNUM
+        attribute 'pop1hr', sNUM
+        attribute 'pop2hr', sNUM
 
 //controlled with localSunrise
 		attribute 'tw_begin', sSTR
@@ -328,7 +332,7 @@ void pollOWM() {
 //	String altLat = "40.6" //"38.627003" //"30.6953657"
 //	String altLon = "-74.53" //"-90.199402" //-88.0398912"
 
-	ParamsOWM = [ uri: 'https://api.openweathermap.org/data/2.5/onecall?lat=' + (String)altLat + '&lon=' + (String)altLon + '&exclude=minutely,hourly&mode=json&units=imperial&appid=' + (String)apiKey ]
+	ParamsOWM = [ uri: 'https://api.openweathermap.org/data/2.5/onecall?lat=' + (String)altLat + '&lon=' + (String)altLon + '&exclude=minutely' + (hourlyPublish ? '' : ',hourly') + '&mode=json&units=imperial&appid=' + (String)apiKey ]
 	LOGINFO('Poll OpenWeatherMap.org: ' + ParamsOWM)
 	asynchttpGet('pollOWMHandler', ParamsOWM)
 }
@@ -336,7 +340,7 @@ void pollOWM() {
 void pollOWMHandler(resp, data) {
 	LOGINFO('Polling OpenWeatherMap.org')
 	if(resp.getStatus() != 200 && resp.getStatus() != 207) {
-		LOGWARN('Calling https://api.openweathermap.org/data/2.5/onecall?lat=' + (String)altLat + '&lon=' + (String)altLon + '&exclude=minutely,hourly&mode=json&units=imperial&appid=' + (String)apiKey)
+		LOGWARN('Calling https://api.openweathermap.org/data/2.5/onecall?lat=' + (String)altLat + '&lon=' + (String)altLon + '&exclude=minutely'+ (hourlyPublish ? '' : ',hourly') + '&mode=json&units=imperial&appid=' + (String)apiKey)
 		LOGWARN(resp.getStatus() + sCOLON + resp.getErrorMessage())
 	}else{
 		Map owm = parseJson(resp.data)
@@ -504,6 +508,7 @@ void pollOWMHandler(resp, data) {
 		myUpdData('OWN_icon', owmCweat == null || owmCweat[0]?.icon==null ? (myGetData('is_day')==sTRU ? '50d' : '50n') : owmCweat[0].icon)
 
 		List owmDaily = owm?.daily != null && ((List)owm.daily)[0]?.weather != null ? ((List)owm?.daily)[0].weather : null
+        updateHourly(owm?.hourly)
 		myUpdData('forecast_id', owmDaily==null || owmDaily[0]?.id==null ? '999' : owmDaily[0].id.toString())
 		myUpdData('forecast_code', getCondCode(myGetData('forecast_id').toInteger(), sTRU))
 		myUpdData('forecast_text', owmDaily==null || owmDaily[0]?.description==null ? 'Unknown' : owmDaily[0].description.capitalize())
@@ -634,6 +639,22 @@ void pollOWMHandler(resp, data) {
 	}
 }
 // >>>>>>>>>> End OpenWeatherMap Poll Routine <<<<<<<<<<
+
+void updateHourly(hourly) {
+    if (hourly) {
+        LOGINFO("hourly[0]=" + hourly[0].temp)
+        myUpdData('temp1hr', hourly[0]?.temp.toString())
+        myUpdData('temp2hr', hourly[1]?.temp.toString())
+        myUpdData('pop1hr', hourly[0]?.pop.toString())
+        myUpdData('pop2hr', hourly[1]?.pop.toString())
+    }
+    else {
+        myUpdData('temp1hr', "")
+        myUpdData('temp2hr', "")
+        myUpdData('pop1hr', "")
+        myUpdData('pop1hr', "")
+    }
+}
 
 static String adjTemp(temp, Boolean isF, Integer mult_twd){
 	BigDecimal t_fl
@@ -853,6 +874,13 @@ void PostPoll() {
 	sendEvent(name: sTEMP, value: myGetData(sTEMP).toBigDecimal(), unit: myGetData(sTMETR))
 	sendEvent(name: 'ultravioletIndex', value: myGetData('ultravioletIndex').toBigDecimal(), unit: 'uvi')
 	sendEvent(name: 'feelsLike', value: myGetData('feelsLike').toBigDecimal(), unit: myGetData(sTMETR))
+    
+    if (hourlyPublish) {
+        sendEvent(name: 'temp1hr', value: myGetData('temp1hr').toBigDecimal(), unit: myGetData(sTMETR))
+        sendEvent(name: 'temp2hr', value: myGetData('temp2hr').toBigDecimal(), unit: myGetData(sTMETR))
+        sendEvent(name: 'pop1hr', value: myGetData('pop1hr').toBigDecimal(), unit: '%')
+        sendEvent(name: 'pop2hr', value: myGetData('pop2hr').toBigDecimal(), unit: '%')
+    }
 
 /*  'Required for Dashboards' Data Elements */
 	if(dashHubitatOWMPublish || dashSharpToolsPublish || dashSmartTilesPublish) { sendEvent(name: 'city', value: myGetData('city')) }
@@ -1492,7 +1520,8 @@ def estimateLux(Integer condition_id, Integer cloud) {
 	}
 	String cC = condition_id.toString()
 	String cCT = ' using cloud cover from API'
-	Double cCF = (!cloud || cloud==sBLK) ? 0.998d : (1 - (cloud/100 / 3d))
+	Double cloudPct = cloud/100
+    Double cCF = (!cloud || cloud==sBLK) ? 0.998d : Math.max(0.003, (1 - (cloudPct * cloudPct)))
 	if(aFCC){
 		if(!cloud){
 			Map LUitem = LUTable.find{ (Integer)it.id == condition_id }
@@ -1690,6 +1719,7 @@ void sendEventPublish(evt)	{
 	'fcstHighLow':				[t: 'Forecast High/Low Temperatures:', d: 'Display forecast High/Low temperatures?', ty: false, defa: sFLS],
 	'forecast_code':			[t: 'Forecast Code', d: 'Display forecast_code?', ty: sSTR, defa: sFLS],
 	'forecast_text':			[t: 'Forecast Text', d: 'Display forecast_text?', ty: sSTR, defa: sFLS],
+    'hourly':					[t: 'Hourly', d: 'Display 2-hour temperature and precipitation?', ty: false, default: sFLS],
 	'illuminated':				[t: 'Illuminated', d: 'Display illuminated (with lux added for use on a Dashboard)?', ty: sSTR, defa: sFLS],
 	'is_day':					[t: 'Is daytime', d: 'Display is_day?', ty: sNUM, defa: sFLS],
 	'localSunrise':				[t: 'Local SunRise and SunSet', d: 'Display the Group of Time of Local Sunrise and Sunset, with and without Dashboard text?', ty: false, defa: sFLS],
