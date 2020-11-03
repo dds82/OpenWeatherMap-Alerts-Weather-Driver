@@ -834,7 +834,8 @@ void updateLux(Boolean pollAgain=true) {
 			return
 		}
 	}
-	def (Long lux, String bwn) = estimateLux(myGetData('condition_id').toInteger(), myGetData('cloud').toInteger())
+    
+	def (Long lux, String bwn) = estimateLux()
 	myUpdData('illuminance', (!lux) ? sZERO : lux.toString())
 	myUpdData('illuminated', String.format('%,4d', (!lux) ? 0 : lux).toString())
 	myUpdData('bwn', bwn)
@@ -1441,6 +1442,11 @@ void setDisplayDecimals(String TWDDisp, String PressDisp, String RainDisp) {
 	myUpdData('mult_r', mult_r)
 }
 
+def estimateLux() {
+    String cloudData = myGetData('cloud')
+	return estimateLux(myGetData('condition_id').toInteger(), cloudData == null ? null : cloudData.toInteger())
+}
+
 def estimateLux(Integer condition_id, Integer cloud) {
 	Long lux
 	Boolean aFCC = true
@@ -1520,10 +1526,10 @@ def estimateLux(Integer condition_id, Integer cloud) {
 	}
 	String cC = condition_id.toString()
 	String cCT = ' using cloud cover from API'
-	Double cloudPct = cloud/100
-    Double cCF = (!cloud || cloud==sBLK) ? 0.998d : Math.max(0.003, (1 - (cloudPct * cloudPct)))
+	Double cloudPct = cloud == null ? null : cloud/100
+    Double cCF = (cloud == null || cloud==sBLK) ? 0.998d : Math.max(0.003, (1 - (cloudPct * cloudPct)))
 	if(aFCC){
-		if(!cloud){
+		if(cloud == null){
 			Map LUitem = LUTable.find{ (Integer)it.id == condition_id }
 			if (LUitem)	{
 				cCF = LUitem.luxp
