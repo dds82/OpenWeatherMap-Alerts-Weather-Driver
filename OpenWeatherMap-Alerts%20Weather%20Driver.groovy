@@ -758,7 +758,6 @@ void pollWDGHandler(resp, data) {
 }
 // >>>
 					
->>>>>>> upstream/master
 static String adjTemp(temp, Boolean isF, Integer mult_twd){
 	BigDecimal t_fl
 	t_fl = temp==null ? 0.00 : temp.toBigDecimal()
