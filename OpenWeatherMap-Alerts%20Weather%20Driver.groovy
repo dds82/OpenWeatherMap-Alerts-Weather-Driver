@@ -407,6 +407,7 @@ void pollOWMHandler(resp, data) {
 		Integer mult_p = myGetData('mult_p')==sNULL ? 1 : myGetData('mult_p').toInteger()
 		Integer mult_r = myGetData('mult_r')==sNULL ? 1 : myGetData('mult_r').toInteger()
 		String ddisp_twd = myGetData('ddisp_twd')==sNULL ? '%3.0f' : myGetData('ddisp_twd')
+        String ddisp_sum = myGetData('ddisp_sum')==sNULL ? '%3.0f' : myGetData('ddisp_sum')
 
 		Boolean isF = myGetData(sTMETR) == sDF
 
@@ -519,7 +520,7 @@ void pollOWMHandler(resp, data) {
 		}
 		myUpdData('wind_direction', w_direction)
 		myUpdData('wind_cardinal', w_cardinal)
-		myUpdData('wind_string', w_string_bft + ' from the ' + myGetData('wind_direction') + (myGetDataBD('wind') < 1.0 ? sBLK: ' at ' + String.format(ddisp_twd, myGetDataBD('wind')) + sSPC + myGetData(sDMETR)))
+		myUpdData('wind_string', w_string_bft + ' from the ' + myGetData('wind_direction') + (myGetDataBD('wind') < 1.0 ? sBLK: ' at ' + String.format(ddisp_sum, myGetDataBD('wind')) + sSPC + myGetData(sDMETR)))
 // >>>>>>>>>> End Process Standard Weather-Station Variables (Regardless of Forecast Selection)  <<<<<<<<<<
 
 		Integer cloudCover = owm?.current?.clouds==null ? 1 : owm.current.clouds <= 1 ? 1 : owm.current.clouds
@@ -1221,7 +1222,7 @@ void PostPoll() {
 
 void buildweatherSummary() {
 	//  <<<<<<<<<< Begin Built Weather Summary text >>>>>>>>>>
-	String ddisp_twd = myGetData('ddisp_twd')==sNULL ? '%3.0f' : myGetData('ddisp_twd')
+	String ddisp_twd = myGetData('ddisp_sum')==sNULL ? '%3.0f' : myGetData('ddisp_sum')
 
 	if(weatherSummaryPublish){ // don't bother setting these values if it's not enabled
 		String Summary_forecastTemp = ' with a high of ' + String.format(ddisp_twd, myGetDataBD('forecastHigh')) + myGetData(sTMETR) + ' and a low of ' + String.format(ddisp_twd, myGetDataBD('forecastLow')) + myGetData(sTMETR) + '. '
@@ -1565,16 +1566,18 @@ void setDisplayDecimals(String TWDDisp, String PressDisp, String RainDisp) {
 	String mult_p
 	String ddisp_r
 	String mult_r
+    String ddisp_sum
 	switch(TWDDisp) {
-		case sZERO: ddisp_twd = '%3.0f'; mult_twd = sONE; break
-		case sONE: ddisp_twd = '%3.1f'; mult_twd = '10'; break
-		case '2': ddisp_twd = '%3.2f'; mult_twd = '100'; break
-		case '3': ddisp_twd = '%3.3f'; mult_twd = '1000'; break
-		case '4': ddisp_twd = '%3.4f'; mult_twd = '10000'; break
-		default: ddisp_twd = '%3.0f'; mult_twd = sONE; break
+		case sZERO: ddisp_twd = '%3.0f'; mult_twd = sONE; ddisp_sum = '%3.0f'; break
+		case sONE: ddisp_twd = '%3.1f'; mult_twd = '10'; ddisp_sum = '%3.0f'; break
+		case '2': ddisp_twd = '%3.2f'; mult_twd = '100'; ddisp_sum = '%3.1f'; break
+		case '3': ddisp_twd = '%3.3f'; mult_twd = '1000'; ddisp_sum = '%3.2f';break
+		case '4': ddisp_twd = '%3.4f'; mult_twd = '10000'; ddisp_sum = '%3.3f';break
+		default: ddisp_twd = '%3.0f'; mult_twd = sONE; ddisp_sum = '%3.0f'; break
 	}
 	myUpdData('ddisp_twd', ddisp_twd)
 	myUpdData('mult_twd', mult_twd)
+    myUpdData('ddisp_sum', ddisp_sum)
 	switch(PressDisp) {
 		case sZERO: ddisp_p = '%,4.0f'; mult_p = sONE; break
 		case sONE: ddisp_p = '%,4.1f'; mult_p = '10'; break
@@ -1740,16 +1743,17 @@ void SummaryMessage(Boolean SType, String Slast_poll_date, String Slast_poll_tim
 		wSum = 'Weather summary for ' + myGetData('city') + ' updated at ' + Slast_poll_time + ' on ' + Slast_poll_date + '. '
 		wSum+= myGetData('condition_text')
 		wSum+= (!SforecastTemp || SforecastTemp==sBLK) ? '. ' : SforecastTemp
-		wSum+= 'Humidity is ' + myGetData('humidity') + '% and the temperature is ' + String.format(myGetData('ddisp_twd'), myGetDataBD(sTEMP)) + myGetData(sTMETR) + '. '
-		wSum+= 'The temperature feels like it is ' + String.format(myGetData('ddisp_twd'), myGetDataBD('feelsLike')) + myGetData(sTMETR) + '. '
+		wSum+= 'Humidity is ' + myGetData('humidity') + '% and the temperature is ' + String.format(myGetData('ddisp_sum'), myGetDataBD(sTEMP)) + myGetData(sTMETR) + '. '
+		wSum+= 'The temperature feels like it is ' + String.format(myGetData('ddisp_sum'), myGetDataBD('feelsLike')) + myGetData(sTMETR) + '. '
 		wSum+= 'Wind: ' + myGetData('wind_string') + ', gusts: ' + ((windgust < 1.00) ? 'calm. ' : 'up to ' + windgust.toString() + sSPC + myGetData(sDMETR) + '. ')
 		wSum+= Sprecip
 		wSum+= Svis
 		wSum+= alertPublish ? ((!myGetData('alert') || myGetData('alert')==sNULL) ? sBLK : sSPC + myGetData('alert') + sDOT) : sBLK
 	}else{
-		wSum = myGetData('condition_text') + sSPC
+        wSum = "Currently, it's " + String.format(myGetData('ddisp_sum'), myGetDataBD(sTEMP)) + myGetData(sTMETR) + " outside, and it feels like " + String.format(myGetData('ddisp_sum'), myGetDataBD('feelsLike')) + myGetData(sTMETR) + ". "
+		wSum += "Today's forecast is: " + myGetData('condition_text') + sSPC
 		wSum+= ((!SforecastTemp || SforecastTemp==sBLK) ? '. ' : SforecastTemp)
-		wSum+= ' Humidity: ' + myGetData('humidity') + '%. Temperature: ' + String.format(myGetData('ddisp_twd'), myGetDataBD(sTEMP)) + myGetData(sTMETR) + '. '
+		wSum+= ' Humidity: ' + myGetData('humidity') + '%. '
 		wSum+= myGetData('wind_string') + ', gusts: ' + ((windgust == 0.00) ? 'calm. ' : 'up to ' + windgust + sSPC + myGetData(sDMETR) + sDOT)
 	}
 	wSum = wSum.take(1024)
