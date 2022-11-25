@@ -1692,7 +1692,8 @@ def estimateLux(Integer condition_id, Integer cloud) {
 	}
 	String cC = condition_id.toString()
 	String cCT = ' using cloud cover from API'
-	Double cCF = (!cloud || cloud==sBLK) ? 0.998d : (1 - (cloud/100 / 3d))
+    Double cloudPct = cloud == null ? null : cloud/100
+	Double cCF = (!cloud || cloud==sBLK) ? 0.998d : Math.max(0.003, (1 - (cloudPct * cloudPct)))
 	if(aFCC){
 		if(!cloud){
 			Map LUitem = LUTable.find{ Map it -> (Integer)it.id == condition_id }
