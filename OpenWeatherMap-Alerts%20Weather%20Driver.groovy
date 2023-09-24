@@ -1,7 +1,7 @@
 /*
 	OpenWeatherMap-Alerts Weather Driver
 	Import URL: https://raw.githubusercontent.com/HubitatCommunity/OpenWeatherMap-Alerts-Weather-Driver/master/OpenWeatherMap-Alerts%2520Weather%2520Driver.groovy
-	Copyright 2020 @Matthew (Scottma61)
+	Copyright 2023 @Matthew (Scottma61)
 
 	This driver has morphed many, many times, so the genesis is very blurry now.  It stated as a WeatherUnderground
 	driver, then when they restricted their API it morphed into an APIXU driver.  When APIXU ceased it became a
@@ -44,9 +44,15 @@
 	on an 'AS IS' BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
 	for the specific language governing permissions and limitations under the License.
 
-	Last Update 08/23/2022
+	Last Update 08/31/2023
 	{ Left room below to document version changes...}
 
+    V0.6.8	08/31/2023	Added pull request from @nh.schottfam to display sun 'altitude' & 'azimuth' as stand-alone optional attributes. Code cleanups.
+    V0.6.7	06/07/2023	Added pull request from @nh.schottfam to display 'City' as a stand-alone optional attribute.
+    V0.6.6	06/03/2023	Code clean-up & corrections from @nh.schottfam (Thanks!).
+    V0.6.5	05/30/2023	Changes to prevent errors and better report in situations where there is no sunrise or sunset.
+    V0.6.4	01/23/2023	Bug fix for wind_cardinal that is creating a "No Data" response w/ 3rd party tile apps.
+    V0.6.3	01/05/2023	Bug fix for myTile not showing icon when neither the 'Three day Forecast Tile' nor the 'Forecast High/Low Temperatures' Optional attributes are selected.
     V0.6.2	08/23/2022	Added user selection of 2.5 or 3.5 OWM API Key; Moved Schedule Change notice to Extended Logging.
     V0.6.1	08/22/2022	Removed the sunrise-sunset.org poll.
     V0.6.0	08/20/2022	More corrections to sunrise/sunset data when when there is a Sunrise-Sunset.org failure.
@@ -130,7 +136,7 @@ The way the 'optional' attributes work:
 //file:noinspection GroovyAssignabilityCheck
 //file:noinspection GrDeprecatedAPIUsage
 
-static String version()	{  return '0.6.2'  }
+static String version()	{  return '0.6.8'  }
 import groovy.transform.Field
 
 metadata {
@@ -151,6 +157,7 @@ metadata {
 		attributesMap.each {
 			k, v -> if (v.ty)	attribute k, v.ty
 		}
+
 //	The following attributes may be needed for dashboards that require these attributes,
 //	so they are alway available and shown by default.
 		attribute 'city', sSTR			//Hubitat  OpenWeather  SharpTool.io  SmartTiles
@@ -208,6 +215,10 @@ metadata {
 		attribute 'sunsetTime', sSTR
 		attribute 'tw_end', sSTR
 
+//suncalc
+		attribute 'altitude', sNUM // sun angle up from the horizon (0 on your horizon, 90 straight up)
+		attribute 'azimuth', sNUM  // sun angle along the horizon (0 is N, 90 East, etc..)
+
 //obspoll
 		attribute 'last_poll_Forecast', sSTR // time the poll was initiated
 		attribute 'last_observation_Forecast', sSTR  // datestamp of the forecast observation
@@ -215,11 +226,11 @@ metadata {
 //precipExtended
 		attribute 'rainTomorrow', sNUM
 		attribute 'rainDayAfterTomorrow', sNUM
-        attribute 'Precip0', sNUM
-        attribute 'Precip1', sNUM
-        attribute 'Precip2', sNUM
-        attribute 'PoP1', sNUM
-        attribute 'PoP2', sNUM
+		attribute 'Precip0', sNUM
+		attribute 'Precip1', sNUM
+		attribute 'Precip2', sNUM
+		attribute 'PoP1', sNUM
+		attribute 'PoP2', sNUM
 
 //cloudExtended
 		attribute 'cloudToday', sNUM
@@ -237,12 +248,12 @@ metadata {
 			input 'city', 'text', required: true, defaultValue: 'City or Location name forecast area', title: 'City name'
 			input 'pollIntervalForecast', 'enum', title: 'External Source Poll Interval (daytime)', required: true, defaultValue: '3 Hours', options: ['Manual Poll Only', '2 Minutes', '5 Minutes', '10 Minutes', '15 Minutes', '30 Minutes', '1 Hour', '3 Hours']
 			input 'pollIntervalForecastnight', 'enum', title: 'External Source Poll Interval (nighttime)', required: true, defaultValue: '3 Hours', options: ['Manual Poll Only', '2 Minutes', '5 Minutes', '10 Minutes', '15 Minutes', '30 Minutes', '1 Hour', '3 Hours']
-			input 'logSet', 'bool', title: 'Enable extended Logging', description: '<i>Extended logging will turn off automatically after 30 minutes.</i>', required: true, defaultValue: false
+			input 'txtEnable', 'bool', title: 'Enable Extended Logging', description: '<i>Extended logging will turn off automatically after 30 minutes.</i>', required: true, defaultValue: false
 			input 'alertSource', 'enum', required: true, defaultValue: sONE, title: 'Weather Alert Source<br>0=None 1=OWM or 2=Weather.gov (US only)', options: [0:sZERO, 1:sONE, 2:sTWO]
 			input 'tempFormat', 'enum', required: true, defaultValue: 'Fahrenheit (°F)', title: 'Display Unit - Temperature: Fahrenheit (°F) or Celsius (°C)',  options: ['Fahrenheit (°F)', 'Celsius (°C)']
-			input 'TWDDecimals', 'enum', required: true, defaultValue: sZERO, title: 'Display decimals for Temperature & Wind Speed', options: [0:sZERO, 1:sONE, 2:'2', 3:'3', 4:'4']
-			input 'RDecimals', 'enum', required: true, defaultValue: sZERO, title: 'Display decimals for Precipitation', options: [0:sZERO, 1:sONE, 2:'2', 3:'3', 4:'4']
-			input 'PDecimals', 'enum', required: true, defaultValue: sZERO, title: 'Display decimals for Pressure', options: [0:sZERO, 1:sONE, 2:'2', 3:'3', 4:'4']
+			input 'TWDDecimals', 'enum', required: true, defaultValue: sZERO, title: 'Display decimals for Temperature & Wind Speed', options: [0:sZERO, 1:sONE, 2:sTWO, 3:'3', 4:'4']
+			input 'RDecimals', 'enum', required: true, defaultValue: sZERO, title: 'Display decimals for Precipitation', options: [0:sZERO, 1:sONE, 2:sTWO, 3:'3', 4:'4']
+			input 'PDecimals', 'enum', required: true, defaultValue: sZERO, title: 'Display decimals for Pressure', options: [0:sZERO, 1:sONE, 2:sTWO, 3:'3', 4:'4']
 			input 'datetimeFormat', 'enum', required: true, defaultValue: sONE, title: 'Display Unit - Date-Time Format',  options: [1:'m/d/yyyy 12 hour (am|pm)', 2:'m/d/yyyy 24 hour', 3:'mm/dd/yyyy 12 hour (am|pm)', 4:'mm/dd/yyyy 24 hour', 5:'d/m/yyyy 12 hour (am|pm)', 6:'d/m/yyyy 24 hour', 7:'dd/mm/yyyy 12 hour (am|pm)', 8:'dd/mm/yyyy 24 hour', 9:'yyyy/mm/dd 24 hour']
 			input 'distanceFormat', 'enum', required: true, defaultValue: 'Miles (mph)', title: 'Display Unit - Distance/Speed: Miles, Kilometers, knots or meters',  options: ['Miles (mph)', 'Kilometers (kph)', 'knots', 'meters (m/s)']
 			input 'pressureFormat', 'enum', required: true, defaultValue: 'Inches', title: 'Display Unit - Pressure: Inches or Millibar/Hectopascal',  options: ['Inches', 'Millibar', 'Hectopascal']
@@ -321,22 +332,40 @@ metadata {
 // <<<<<<<<<< Begin Sunrise-Sunset Poll Routines >>>>>>>>>>
 void pollSunRiseSet() {
 	if(ifreInstalled()) { updated(); return }
-	String currDate = new Date().format('yyyy-MM-dd', TimeZone.getDefault())
 	TimeZone tZ= TimeZone.getDefault()
+
+	Date dnow= new Date()
+	String currDate = dnow.format('yyyy-MM-dd', tZ)
+
     String tfmt1='HH:mm'
-    Date tsunrise= todaysSunrise
-    Date tsunset= todaysSunset
-    myUpdData('riseTime', tsunrise.format(tfmt1, tZ))
-    myUpdData('noonTime', new Date(tsunrise.getTime() + ((tsunset.getTime() - tsunrise.getTime()).intdiv(2))).format(tfmt1, tZ))
-    myUpdData('setTime', tsunset.format(tfmt1, tZ))
-    myUpdData('tw_begin', new Date(tsunrise.getTime() - (25*60*1000)).format(tfmt1, tZ)) // 25 minutes before sunrise
-    myUpdData('tw_end', new Date(tsunset.getTime() + (25*60*1000)).format(tfmt1, tZ)) // 25 minutes after sunset
-    myUpdData('localSunset', tsunset.format(myGetData('timeFormat'), tZ))
-    myUpdData('localSunrise', tsunrise.format(myGetData('timeFormat'), tZ))
-    myUpdData('riseTime1', new Date(tsunrise.getTime() + (60*60*24*1000)).format(tfmt1, tZ))
-    myUpdData('riseTime2', new Date(tsunrise.getTime() + (60*60*24*1000*2)).format(tfmt1, tZ))
-    myUpdData('setTime1', new Date(tsunset.getTime() + (60*60*24*1000)).format(tfmt1, tZ))
-    myUpdData('setTime2', new Date(tsunset.getTime() + (60*60*24*1000*2)).format(tfmt1, tZ))
+	Date tSunrise; tSunrise = (Date)todaysSunrise
+	tSunrise = (!tSunrise || tSunrise == null) ? Date.parse("yyyy-MM-dd hh:mm:ss", currDate + " 00:00:00") : tSunrise
+
+	Date tSunset; tSunset = (Date)todaysSunset
+	if(!tSunset || tSunset == null){
+		String currYear = dnow.format('yyyy', tZ)
+		Date mar21= Date.parse("yyyy-MM-dd", currYear + '-03-21')
+		Date sep21= Date.parse("yyyy-MM-dd", currYear + '-09-21')
+		Boolean isBtwn= (dnow >= mar21 && dnow < sep21)
+		Date twelve59= Date.parse("yyyy-MM-dd hh:mm:ss", currDate + " 23:59:59")
+		Date mid01= Date.parse("yyyy-MM-dd hh:mm:ss", currDate + " 00:00:01")
+		if(altLat.toDouble() > 0.0D) {
+			tSunset = isBtwn ? twelve59 : mid01
+		} else {
+			tSunset = !isBtwn ? twelve59 : mid01
+		}
+	}
+	myUpdData('riseTime', tSunrise.format(tfmt1, tZ))
+	myUpdData('noonTime', new Date(tSunrise.getTime() + ((tSunset.getTime() - tSunrise.getTime()).intdiv(2))).format(tfmt1, tZ))
+	myUpdData('setTime', tSunset.format(tfmt1, tZ))
+	myUpdData('tw_begin', new Date(tSunrise.getTime() - (25*60*1000)).format(tfmt1, tZ)) // 25 minutes before sunrise
+	myUpdData('tw_end', new Date(tSunset.getTime() + (25*60*1000)).format(tfmt1, tZ)) // 25 minutes after sunset
+	myUpdData('localSunset', tSunset.format(myGetData('timeFormat'), tZ))
+	myUpdData('localSunrise', tSunrise.format(myGetData('timeFormat'), tZ))
+	myUpdData('riseTime1', new Date(tSunrise.getTime() + (60*60*24*1000)).format(tfmt1, tZ))
+	myUpdData('riseTime2', new Date(tSunrise.getTime() + (60*60*24*1000*2)).format(tfmt1, tZ))
+	myUpdData('setTime1', new Date(tSunset.getTime() + (60*60*24*1000)).format(tfmt1, tZ))
+	myUpdData('setTime2', new Date(tSunset.getTime() + (60*60*24*1000*2)).format(tfmt1, tZ))
 }
 // >>>>>>>>>> End Sunrise-Sunset Routines <<<<<<<<<<
 
@@ -407,7 +436,6 @@ void pollOWMHandler(resp, data) {
 		Integer mult_p = myGetData('mult_p')==sNULL ? 1 : myGetData('mult_p').toInteger()
 		Integer mult_r = myGetData('mult_r')==sNULL ? 1 : myGetData('mult_r').toInteger()
 		String ddisp_twd = myGetData('ddisp_twd')==sNULL ? '%3.0f' : myGetData('ddisp_twd')
-        String ddisp_sum = myGetData('ddisp_sum')==sNULL ? '%3.0f' : myGetData('ddisp_sum')
 
 		Boolean isF = myGetData(sTMETR) == sDF
 
@@ -415,7 +443,7 @@ void pollOWMHandler(resp, data) {
 		myUpdData('dewpoint', adjTemp(t_dew, isF, mult_twd))
 		myUpdData('humidity', (Math.round((owm?.current?.humidity==null ? 0.00 : owm.current.humidity.toBigDecimal()) * 10) / 10).toString())
 
-		BigDecimal t_press = owm?.current?.pressure==null ? 0.00 : owm.current.pressure.toBigDecimal()
+		BigDecimal t_press; t_press = owm?.current?.pressure==null ? 0.00 : owm.current.pressure.toBigDecimal()
 		if(myGetData(sPMETR) == 'inHg') {
 			t_press = Math.round(t_press * 0.029529983071445 * mult_p) / mult_p
 		}else{
@@ -520,7 +548,7 @@ void pollOWMHandler(resp, data) {
 		}
 		myUpdData('wind_direction', w_direction)
 		myUpdData('wind_cardinal', w_cardinal)
-		myUpdData('wind_string', w_string_bft + ' from the ' + myGetData('wind_direction') + (myGetDataBD('wind') < 1.0 ? sBLK: ' at ' + String.format(ddisp_sum, myGetDataBD('wind')) + sSPC + myGetData(sDMETR)))
+		myUpdData('wind_string', w_string_bft + ' from the ' + myGetData('wind_direction') + (myGetDataBD('wind') < 1.0 ? sBLK: ' at ' + String.format(ddisp_twd, myGetDataBD('wind')) + sSPC + myGetData(sDMETR)))
 // >>>>>>>>>> End Process Standard Weather-Station Variables (Regardless of Forecast Selection)  <<<<<<<<<<
 
 		Integer cloudCover = owm?.current?.clouds==null ? 1 : owm.current.clouds <= 1 ? 1 : owm.current.clouds
@@ -547,7 +575,7 @@ void pollOWMHandler(resp, data) {
 		myUpdData('PoP', (!owmDaily[0].pop ? 0 : Math.round(owmDaily[0].pop.toBigDecimal() * 100.toInteger())).toString())
 		myUpdData('percentPrecip', myGetData('PoP'))
 
-		if(owmDaily && (threedayTilePublish || precipExtendedPublish || myTile2Publish)) {
+		if(owmDaily && (threedayTilePublish || precipExtendedPublish || myTilePublish)) {
 			BigDecimal t_p1 = (owmDaily==null || !owmDaily[1]?.rain ? 0.00 : owmDaily[1].rain.toBigDecimal()) + (owmDaily==null || !owmDaily[1]?.snow ? 0.00 : owmDaily[1].snow.toBigDecimal())
 			BigDecimal t_p2 = (owmDaily==null || !owmDaily[2]?.rain ? 0.00 : owmDaily[2].rain.toBigDecimal()) + (owmDaily==null || !owmDaily[2]?.snow ? 0.00 : owmDaily[2].snow.toBigDecimal())
 			myUpdData('Precip0', (Math.round((myGetData(sRMETR) == 'in' ? t_p0 * 0.03937008 : t_p0) * mult_r) / mult_r).toString())
@@ -565,13 +593,13 @@ void pollOWMHandler(resp, data) {
 
 		String imgT1=(myGetData(sICON).toLowerCase().contains('://github.com/') && myGetData(sICON).toLowerCase().contains('/blob/master/') ? '?raw=true' : sBLK)
 		if(owmDaily && owmDaily[1] && owmDaily[2]) {
-            String tmpImg0= myGetData(sICON) + (myGetData('iconType')== sTRU ? getImgName(myGetData('condition_id').toInteger(), myGetData('is_day')) : getImgName(myGetData('forecast_id').toInteger(), myGetData('is_day'))) + imgT1
+			String tmpImg0= myGetData(sICON) + (myGetData('iconType')== sTRU ? getImgName(myGetData('condition_id').toInteger(), myGetData('is_day')) : getImgName(myGetData('forecast_id').toInteger(), myGetData('is_day'))) + imgT1
 //			String tmpImg0= myGetData(sICON) + getImgName((!owmDaily[0].weather[0].id ? 999 : owmDaily[0].weather[0].id.toInteger()), sTRU) + imgT1
 			String tmpImg1= myGetData(sICON) + getImgName((!owmDaily[1].weather[0].id ? 999 : owmDaily[1].weather[0].id.toInteger()), sTRU) + imgT1
 			String tmpImg2= myGetData(sICON) + getImgName((!owmDaily[2].weather[0].id ? 999 : owmDaily[2].weather[0].id.toInteger()), sTRU) + imgT1
 
 
-			if(threedayTilePublish || myTile2Publish || fcstHighLowPublish) {
+			if(threedayTilePublish || myTilePublish || fcstHighLowPublish) {
 				myUpdData('day1', owmDaily[1]?.dt==null ? sBLK : new Date((Long)owmDaily[1].dt * 1000L).format('EEEE'))
 				myUpdData('day2', owmDaily[2]?.dt==null ? sBLK : new Date((Long)owmDaily[2].dt * 1000L).format('EEEE'))
 				myUpdData('is_day1', sTRU)
@@ -655,10 +683,11 @@ void pollOWMHandler(resp, data) {
 					if(curAl==sNCWA) {
 						clearAlerts()
 					}else{
-						Integer alertCnt = 0
-						for(Integer i = 1;i<10;i++) {
+						Integer alertCnt; alertCnt = 0
+						Integer i
+						for(i = 1;i<10;i++) {
 							if(owm?.alerts[i]?.event!=null) {
-								alertCnt = i
+								alertCnt++
 							}
 						}
 						myUpdData('alertCnt', alertCnt.toString())
@@ -750,10 +779,11 @@ void pollWDGHandler(resp, data) {
 		myUpdData('curAl', wdg?.features[0]?.properties?.event == null ? sNCWA : wdg.features[0].properties.event.replaceAll('\n', sSPC).replaceAll('[{}\\[\\]]', sBLK))
 		myUpdData('curAlSender', wdg?.features[0]?.properties?.senderName==null ? sNULL : ((String)wdg.features[0].properties.senderName).replaceAll('\n',sSPC).replaceAll('[{}\\[\\]]', sBLK))
 		myUpdData('curAlDescr', wdg?.features[0]?.properties?.description==null ? sNULL : ((String)wdg.features[0].properties.description).replaceAll('\n',sSPC).replaceAll('[{}\\[\\]]', sBLK).take(1024))
-		Integer alertCnt = 0
-		for(Integer i = 1;i<10;i++) {
+		Integer alertCnt; alertCnt = 0
+		Integer i
+		for(i = 1;i<10;i++) {
 			if(wdg?.features[i]?.properties?.event!=null) {
-				alertCnt = i
+				alertCnt++
 			}
 		}
 		myUpdData('alertCnt', alertCnt.toString())
@@ -832,8 +862,9 @@ static String dumpListDesc(data, Integer level, List<Boolean> lastLevel, String 
 			newLevel[level]=t1
 			str += dumpMapDesc(newmap, level, newLevel, !t1, html)
 		}else{
-			String lineStrt='\n'
-			for(Integer i=0; i<level; i++){
+			String lineStrt; lineStrt='\n'
+			Integer i
+			for(i=0; i<level; i++){
 				lineStrt += (i+1<level)? (!lastLevel[i] ? '     │' : '      '):'      '
 			}
 			lineStrt += (cnt==1 && sz>1)? '┌─ ':(cnt<sz ? '├─ ' : '└─ ')
@@ -866,7 +897,8 @@ static String dumpMapDesc(data, Integer level, List<Boolean> lastLevel, Boolean 
 		}else{
 			theLast= theLast && thisIsLast
 			lineStrt='\n'
-			for(Integer i=0; i<level; i++){
+			Integer i
+			for(i=0; i<level; i++){
 				lineStrt += (i+1<level)? (!newLevel[i] ? '     │' : '      '):'      '
 			}
 			lineStrt += ((cnt<sz || listCall) && !thisIsLast) ? '├─ ' : '└─ '
@@ -1011,7 +1043,7 @@ void PostPoll() {
     }
 
 /*  'Required for Dashboards' Data Elements */
-	if(dashHubitatOWMPublish || dashSharpToolsPublish || dashSmartTilesPublish) {
+	if(dashHubitatOWMPublish || dashSharpToolsPublish || dashSmartTilesPublish || cityPublish) {
 		sendEvent(name: 'city', value: myGetData('city'))
 	}else{
 		device.deleteCurrentState('city')
@@ -1111,6 +1143,16 @@ void PostPoll() {
 	}
 	sendEventPublish(name: 'illuminated', value: myGetData('illuminated') + ' lx')
 	sendEventPublish(name: 'is_day', value: myGetData('is_day'))
+
+	//suncalc
+	if(suncalcPublish){  // don't bother setting these values if it's not enabled
+		LinkedHashMap<String,Double> coords = getPosition()
+		sendEvent(name: 'altitude', value: coords.altitude)
+		sendEvent(name: 'azimuth', value: coords.azimuth)
+	}else{
+		device.deleteCurrentState('altitude')
+		device.deleteCurrentState('azimuth')
+	}
 
 	if(obspollPublish){  // don't bother setting these values if it's not enabled
 		TimeZone tZ= TimeZone.getDefault()
@@ -1266,6 +1308,7 @@ void buildMyText() {
 		mytext += '<table style="text-align:center;display:inline">'
 		mytext += sTR + '<B>' + myGetData('city') + '</B>'
 		mytext += sTR + myGetData('condition_text') + (noAlert ? sBLK : ' | ') + alertStyleOpen + (noAlert ? sBLK : myGetData('alertLink')) + alertStyleClose
+		LOGINFO("myGetData('imgName0') is " + myGetData('imgName0'))
 		mytext += sTR + String.format(ddisp_twd, myGetDataBD(sTEMP)) + myGetData(sTMETR) + myGetData('imgName0')
 		mytext += 'Feels like ' + String.format(ddisp_twd, myGetDataBD('feelsLike')) + myGetData(sTMETR)
 		mytext += '<tr style="font-size:85%">' + sTD + sIMGS8 + myGetData(sICON) + myGetData('wind_bft_icon') + iconClose + myGetData('wind_direction') + sSPC
@@ -1301,6 +1344,7 @@ void buildMyText() {
 	}
 //  >>>>>>>>>> End Built mytext <<<<<<<<<<
 }
+
 void refresh() {
 	updateLux(true)
 }
@@ -1337,7 +1381,7 @@ void finishSched() {
 	schedule("${ssseconds} 20 0/8 ? * * *", pollSunRiseSet)
 	runIn(5, pollData)
 	if(settingEnable) runIn(2100,settingsOff)// 'roll up' (hide) the condition selectors after 35 min
-	if(settings.logSet) runIn(1800,logsOff)// turns off extended logging after 30 min
+	if(settings.txtEnable) runIn(1800,logsOff)// turns off extended logging after 30 min
 	Integer r_minutes = rand.nextInt(60)
 	schedule("0 ${r_minutes} 8 ? * FRI *", updateCheck)
 }
@@ -1349,8 +1393,8 @@ void initMe() {
 	myUpdData('city', city)
 	myUpdData('threedayLH', settings.threedayLH ? sTRU : sFLS)
 	Boolean altCoord = (settings.altCoord ?: false)
-	String valtLat = location.latitude.toString().replace(sSPC, sBLK)
-	String valtLon = location.longitude.toString().replace(sSPC, sBLK)
+	String valtLat; valtLat = location.latitude.toString().replace(sSPC, sBLK)
+	String valtLon; valtLon = location.longitude.toString().replace(sSPC, sBLK)
 	String altLat = settings.altLat ?: valtLat
 	String altLon = settings.altLon ?: valtLon
 	if (altCoord) {
@@ -1503,16 +1547,16 @@ void setDateTimeFormats(String formatselector){
 	String dateFormat
 	String timeFormat
 	switch(mSel) {
-		case sONE: DTFormat = 'M/d/yyyy h:mm a';   dateFormat = 'M/d/yyyy';   timeFormat = 'h:mm a'; break
-		case '2': DTFormat = 'M/d/yyyy HH:mm';	dateFormat = 'M/d/yyyy';   timeFormat = 'HH:mm';  break
+		case sONE: DTFormat = 'M/d/yyyy h:mm a';  dateFormat = 'M/d/yyyy';  timeFormat = 'h:mm a'; break
+		case sTWO: DTFormat = 'M/d/yyyy HH:mm';	dateFormat = 'M/d/yyyy';  timeFormat = 'HH:mm';  break
 		case '3': DTFormat = 'MM/dd/yyyy h:mm a'; dateFormat = 'MM/dd/yyyy'; timeFormat = 'h:mm a'; break
 		case '4': DTFormat = 'MM/dd/yyyy HH:mm';  dateFormat = 'MM/dd/yyyy'; timeFormat = 'HH:mm';  break
-		case '5': DTFormat = 'd/M/yyyy h:mm a';   dateFormat = 'd/M/yyyy';   timeFormat = 'h:mm a'; break
-		case '6': DTFormat = 'd/M/yyyy HH:mm';	dateFormat = 'd/M/yyyy';   timeFormat = 'HH:mm';  break
+		case '5': DTFormat = 'd/M/yyyy h:mm a';  dateFormat = 'd/M/yyyy';  timeFormat = 'h:mm a'; break
+		case '6': DTFormat = 'd/M/yyyy HH:mm';	dateFormat = 'd/M/yyyy';  timeFormat = 'HH:mm';  break
 		case '7': DTFormat = 'dd/MM/yyyy h:mm a'; dateFormat = 'dd/MM/yyyy'; timeFormat = 'h:mm a'; break
 		case '8': DTFormat = 'dd/MM/yyyy HH:mm';  dateFormat = 'dd/MM/yyyy'; timeFormat = 'HH:mm';  break
 		case '9': DTFormat = 'yyyy/MM/dd HH:mm';  dateFormat = 'yyyy/MM/dd'; timeFormat = 'HH:mm';  break
-		default: DTFormat = 'M/d/yyyy h:mm a';  dateFormat = 'M/d/yyyy';   timeFormat = 'h:mm a'; break
+		default: DTFormat = 'M/d/yyyy h:mm a';  dateFormat = 'M/d/yyyy';  timeFormat = 'h:mm a'; break
 	}
 	myUpdData('DTFormat', DTFormat)
 	myUpdData('dateFormat', dateFormat)
@@ -1568,12 +1612,12 @@ void setDisplayDecimals(String TWDDisp, String PressDisp, String RainDisp) {
 	String mult_r
     String ddisp_sum
 	switch(TWDDisp) {
-		case sZERO: ddisp_twd = '%3.0f'; mult_twd = sONE; ddisp_sum = '%3.0f'; break
-		case sONE: ddisp_twd = '%3.1f'; mult_twd = '10'; ddisp_sum = '%3.0f'; break
-		case '2': ddisp_twd = '%3.2f'; mult_twd = '100'; ddisp_sum = '%3.1f'; break
-		case '3': ddisp_twd = '%3.3f'; mult_twd = '1000'; ddisp_sum = '%3.2f';break
-		case '4': ddisp_twd = '%3.4f'; mult_twd = '10000'; ddisp_sum = '%3.3f';break
-		default: ddisp_twd = '%3.0f'; mult_twd = sONE; ddisp_sum = '%3.0f'; break
+		case sZERO: ddisp_twd = '%3.0f'; mult_twd = sONE; break
+		case sONE: ddisp_twd = '%3.1f'; mult_twd = '10'; break
+		case sTWO: ddisp_twd = '%3.2f'; mult_twd = '100'; break
+		case '3': ddisp_twd = '%3.3f'; mult_twd = '1000'; break
+		case '4': ddisp_twd = '%3.4f'; mult_twd = '10000'; break
+		default: ddisp_twd = '%3.0f'; mult_twd = sONE; break
 	}
 	myUpdData('ddisp_twd', ddisp_twd)
 	myUpdData('mult_twd', mult_twd)
@@ -1581,7 +1625,7 @@ void setDisplayDecimals(String TWDDisp, String PressDisp, String RainDisp) {
 	switch(PressDisp) {
 		case sZERO: ddisp_p = '%,4.0f'; mult_p = sONE; break
 		case sONE: ddisp_p = '%,4.1f'; mult_p = '10'; break
-		case '2': ddisp_p = '%,4.2f'; mult_p = '100'; break
+		case sTWO: ddisp_p = '%,4.2f'; mult_p = '100'; break
 		case '3': ddisp_p = '%,4.3f'; mult_p = '1000'; break
 		case '4': ddisp_p = '%,4.4f'; mult_p = '10000'; break
 		default: ddisp_p = '%,4.0f'; mult_p = sONE; break
@@ -1591,7 +1635,7 @@ void setDisplayDecimals(String TWDDisp, String PressDisp, String RainDisp) {
 	switch(RainDisp) {
 		case sZERO: ddisp_r = '%2.0f'; mult_r = sONE; break
 		case sONE: ddisp_r = '%2.1f'; mult_r = '10'; break
-		case '2': ddisp_r = '%2.2f'; mult_r = '100'; break
+		case sTWO: ddisp_r = '%2.2f'; mult_r = '100'; break
 		case '3': ddisp_r = '%2.3f'; mult_r = '1000'; break
 		case '4': ddisp_r = '%2.4f'; mult_r = '10000'; break
 		default: ddisp_r = '%2.0f'; mult_r = sONE; break
@@ -1619,13 +1663,33 @@ def estimateLux(Integer condition_id, Integer cloud) {
 	Long noonTimeMillis
 	Long sunsetTimeMillis
 	Long twilight_endMillis
-    Date tsunrise= todaysSunrise
-    Date tsunset= todaysSunset
-    twilight_beginMillis	= tsunrise.getTime() - 1500000L // (25*60*1000) // 25 minutes before sunrise
-    sunriseTimeMillis	= tsunrise.getTime()
-    noonTimeMillis		= tsunrise.getTime() + (tsunset.getTime() - tsunrise.getTime()).intdiv(2)
-    sunsetTimeMillis	= tsunset.getTime()
-    twilight_endMillis	= tsunset.getTime() + 1500000L // (25*60*1000) // 25 minutes after sunset
+
+	Date dnow= new Date()
+	String currDate = dnow.format('yyyy-MM-dd', tZ)
+	Date tSunrise, tSunset
+	tSunrise = (Date)todaysSunrise
+	tSunrise = (!tSunrise || tSunrise == null) ? Date.parse("yyyy-MM-dd hh:mm:ss", currDate + " 00:00:00") : tSunrise
+
+	tSunset = (Date)todaysSunset
+	if(!tSunset || tSunset == null){
+		String currYear = dnow.format('yyyy', tZ)
+		Date mar21= Date.parse("yyyy-MM-dd", currYear + '-03-21')
+		Date sep21= Date.parse("yyyy-MM-dd", currYear + '-09-21')
+		Boolean isBtwn= (dnow >= mar21 && dnow < sep21)
+		Date twelve59= Date.parse("yyyy-MM-dd hh:mm:ss", currDate + " 23:59:59")
+		Date mid01= Date.parse("yyyy-MM-dd hh:mm:ss", currDate + " 00:00:01")
+		if(altLat.toDouble() > 0.0D) {
+			tSunset = isBtwn ? twelve59 : mid01
+		} else {
+			tSunset = !isBtwn ? twelve59 : mid01
+		}
+	}
+
+	twilight_beginMillis	= tSunrise.getTime() - 1500000L // (25*60*1000) // 25 minutes before sunrise
+	sunriseTimeMillis	= tSunrise.getTime()
+	noonTimeMillis		= tSunrise.getTime() + (tSunset.getTime() - tSunrise.getTime()).intdiv(2)
+	sunsetTimeMillis	= tSunset.getTime()
+	twilight_endMillis	= tSunset.getTime() + 1500000L // (25*60*1000) // 25 minutes after sunset
 
 	Long twiStartNextMillis		= twilight_beginMillis + 86400000L // = 24*60*60*1000 --> one day in milliseconds
 	Long sunriseNextMillis		= sunriseTimeMillis + 86400000L
@@ -1744,8 +1808,8 @@ void SummaryMessage(Boolean SType, String Slast_poll_date, String Slast_poll_tim
 		wSum = 'Weather summary for ' + myGetData('city') + ' updated at ' + Slast_poll_time + ' on ' + Slast_poll_date + '. '
 		wSum+= myGetData('condition_text')
 		wSum+= (!SforecastTemp || SforecastTemp==sBLK) ? '. ' : SforecastTemp
-		wSum+= 'Humidity is ' + myGetData('humidity') + '% and the temperature is ' + String.format(myGetData('ddisp_sum'), myGetDataBD(sTEMP)) + myGetData(sTMETR) + '. '
-		wSum+= 'The temperature feels like it is ' + String.format(myGetData('ddisp_sum'), myGetDataBD('feelsLike')) + myGetData(sTMETR) + '. '
+		wSum+= 'Humidity is ' + myGetData('humidity') + '% and the temperature is ' + String.format(myGetData('ddisp_twd'), myGetDataBD(sTEMP)) + myGetData(sTMETR) + '. '
+		wSum+= 'The temperature feels like it is ' + String.format(myGetData('ddisp_twd'), myGetDataBD('feelsLike')) + myGetData(sTMETR) + '. '
 		wSum+= 'Wind: ' + myGetData('wind_string') + ', gusts: ' + ((windgust < 1.00) ? 'calm. ' : 'up to ' + windgust.toString() + sSPC + myGetData(sDMETR) + '. ')
 		wSum+= Sprecip
 		wSum+= Svis
@@ -1754,7 +1818,7 @@ void SummaryMessage(Boolean SType, String Slast_poll_date, String Slast_poll_tim
         wSum = "Currently, it's " + String.format(myGetData('ddisp_sum'), myGetDataBD(sTEMP)) + myGetData(sTMETR) + " outside, and it feels like " + String.format(myGetData('ddisp_sum'), myGetDataBD('feelsLike')) + myGetData(sTMETR) + ". "
 		wSum += "Today's forecast is: " + myGetData('condition_text') + sSPC
 		wSum+= ((!SforecastTemp || SforecastTemp==sBLK) ? '. ' : SforecastTemp)
-		wSum+= ' Humidity: ' + myGetData('humidity') + '%. '
+		wSum+= ' Humidity: ' + myGetData('humidity') + '%. Temperature: ' + String.format(myGetData('ddisp_twd'), myGetDataBD(sTEMP)) + myGetData(sTMETR) + '. '
 		wSum+= myGetData('wind_string') + ', gusts: ' + ((windgust == 0.00) ? 'calm. ' : 'up to ' + windgust + sSPC + myGetData(sDMETR) + sDOT)
 	}
 	wSum = wSum.take(1024)
@@ -1774,7 +1838,7 @@ String getCondCode(Integer cid, String iconTOD){
 }
 
 void logCheck(){
-	if(settings.logSet){
+	if(settings.txtEnable){
 		log.info 'OpenWeatherMap.org Weather Driver - INFO:  All Logging Enabled'
 	}else{
 		log.info 'OpenWeatherMap.org Weather Driver - INFO:  Further Logging Disabled'
@@ -1782,24 +1846,24 @@ void logCheck(){
 }
 
 void LOGDEBUG(String txt){
-	if(settings.logSet){ log.debug('OpenWeatherMap.org Weather Driver - DEBUG:  ' + txt) }
+	if(settings.txtEnable){ log.debug('OpenWeatherMap.org Weather Driver - DEBUG:  ' + txt) }
 }
 
 void LOGINFO(String txt){
-	if(settings.logSet){log.info('OpenWeatherMap.org Weather Driver - INFO:  ' + txt) }
+	if(settings.txtEnable){log.info('OpenWeatherMap.org Weather Driver - INFO:  ' + txt) }
 }
 
 void LOGWARN(String txt){
-	if(settings.logSet){log.warn('OpenWeatherMap.org Weather Driver - WARNING:  ' + txt) }
+	if(settings.txtEnable){log.warn('OpenWeatherMap.org Weather Driver - WARNING:  ' + txt) }
 }
 
 void LOGERR(String txt){
-	if(settings.logSet){log.error('OpenWeatherMap.org Weather Driver - ERROR:  ' + txt) }
+	if(settings.txtEnable){log.error('OpenWeatherMap.org Weather Driver - ERROR:  ' + txt) }
 }
 
 void logsOff(){
 	log.info 'OpenWeatherMap.org Weather Driver - INFO:  extended logging disabled...'
-	device.updateSetting('logSet',[value:sFLS,type:'bool'])
+	device.updateSetting('txtEnable',[value:sFLS,type:'bool'])
 }
 
 void settingsOff(){
@@ -1807,6 +1871,9 @@ void settingsOff(){
 	device.updateSetting('settingEnable',[value:sFLS,type:'bool'])
 }
 
+/**
+ * send event if enabled for publishing, otherwise delete current state
+ */
 void sendEventPublish(evt)	{
 //	Purpose: Attribute sent to DB if selected
 	if (settings."${evt.name + 'Publish'}") {
@@ -1816,6 +1883,89 @@ void sendEventPublish(evt)	{
 		device.deleteCurrentState((String)evt.name)
 	}
 }
+
+///
+/// Calculations
+// based on SunCalc by Justin Walker
+///
+
+// date/time constants and conversions
+static Integer dayMs() { return 1000 * 60 * 60 * 24 }
+
+static Long J1970() { return 2440588L }
+
+static Long J2000() { return 2451545L }
+
+static Double rad() { return  Math.PI / 180.0D }
+
+static Double e() { return  rad() * 23.4397D } // obliquity of the Earth
+
+static Double toJulian() {
+	Date date = new Date()
+	Double l = date.getTime() / dayMs() - 0.5D + J1970()
+	return l
+}
+
+static Date fromJulian(Double j)  { return new Date(Math.round((j + 0.5D - J1970()) * dayMs()) ) }
+static Integer toDays(){ return toJulian() - J2000() }
+
+// general calculations for position
+
+static Double rightAscension(Double l, Double b) { return Math.atan2(Math.sin(l) * Math.cos(e()) - Math.tan(b) * Math.sin(e()), Math.cos(l)) }
+static Double declination(Double l, Double b)    { return Math.asin(Math.sin(b) * Math.cos(e()) + Math.cos(b) * Math.sin(e()) * Math.sin(l)) }
+
+static Double azimuth(Double H, Double phi, Double dec)  { return Math.atan2(Math.sin(H), Math.cos(H) * Math.sin(phi) - Math.tan(dec) * Math.cos(phi)) }
+static Double altitude(Double H, Double phi, Double dec) { return Math.asin(Math.sin(phi) * Math.sin(dec) + Math.cos(phi) * Math.cos(dec) * Math.cos(H)) }
+
+static Double siderealTime(Double d, Double lw) { return rad() * (280.16D + 360.9856235D * d) - lw }
+
+// general sun calculations
+
+static Double solarMeanAnomaly(Double d) { return rad() * (357.5291D + 0.98560028D * d) }
+
+static Double eclipticLongitude(Double M) {
+
+	Double C = rad() * (1.9148D * Math.sin(M) + 0.02D * Math.sin(2.0D * M) + 0.0003D * Math.sin(3.0D * M)) // equation of center
+	Double P = rad() * 102.9372D // perihelion of the Earth
+
+	return M + C + P + Math.PI
+}
+
+
+static LinkedHashMap<String,Double> sunCoords(Double d) {
+
+	Double M = solarMeanAnomaly(d)
+	Double L = eclipticLongitude(M)
+
+	return [dec: declination(L, 0D), ra: rightAscension(L, 0D)]
+}
+
+// calculates sun position for a given date and latitude/longitude
+
+LinkedHashMap<String,Double> getPosition() {
+
+	Double lng = ((String)altLon).toDouble()
+	Double lat = ((String)altLat).toDouble()
+
+	Double lw  = rad() * -lng
+	Double phi = rad() * lat
+	Double d   = toDays()
+	LinkedHashMap<String,Double> c  = sunCoords(d)
+	Double H  = siderealTime(d, lw) - c.ra
+
+	Double az; az = azimuth(H, phi, c.dec)
+	az = (az * 180.0D / Math.PI) + 180.0D
+
+	Double al; al = altitude(H, phi, c.dec)
+	al = al * 180.0D / Math.PI
+
+	return [
+			azimuth: az,
+			altitude: al,
+	]
+}
+
+
 
 @Field final List<Map>	LUTable =	[
 [id: 200, OWMd: s11D, OWMn: s11N, Icd: '38.png', Icn: '47.png', luxp: 0.2, sId: sCTS, sIn: sNCTS],
@@ -1876,7 +2026,8 @@ void sendEventPublish(evt)	{
 [id: 999, OWMd: '50d.png', OWMn: '50n.png', Icd: sNPNG, Icn: sNPNG, luxp: 1.0, sId: 'unknown', sIn: 'unknown'],
 	]
 
-@Field final Map attributesMap = [
+@Field final Map<String,Map> attributesMap = [
+	'city':						[t: 'Display City', d: 'Display City name?', ty: false, defa: sFLS],
 	'threedayTile':				[t: 'Three Day Forecast Tile', d: 'Display Three Day Forecast Tile?', ty: sSTR, defa: sFLS],
 	'alert':					[t: 'Weather Alert', d: 'Display any weather alert?', ty: false, defa: sFLS],
 	'betwixt':					[t: 'Slice of Day', d: 'Display the slice-of-day?', ty: sSTR, defa: sFLS],
@@ -1904,9 +2055,10 @@ void sendEventPublish(evt)	{
 	'percentPrecip':			[t: 'Today\'s Precipitation Probability', d: 'Display today\'s precipitation probability?', ty: sNUM, defa: sFLS],
 	'precipExtended':			[t: 'Precipitation Forecast', d: 'Display precipitation forecast?', ty: false, defa: sFLS],
 	'obspoll':					[t: 'Observation time', d: 'Display Observation and Poll times?', ty: false, defa: sFLS],
+	'suncalc':					[t: 'Sun calculations', d: 'Display Altitude and Azuimuth of Sun?', ty: false, defa: sFLS],
 	'vis':						[t: 'Visibility (in default unit)', d: 'Display visibility distance?', ty: sNUM, defa: sFLS],
 	'weatherSummary':			[t: 'Weather Summary Message', d: 'Display the Weather Summary?', ty: sSTR, defa: sFLS],
-	'wind_cardinal':			[t: 'Wind Cardinal', d: 'Display the Wind Direction (text initials)?', ty: sNUM, defa: sFLS],
+	'wind_cardinal':			[t: 'Wind Cardinal', d: 'Display the Wind Direction (text initials)?', ty: sSTR, defa: sFLS],
 	'wind_degree':				[t: 'Wind Degree', d: 'Display the Wind Direction (number)?', ty: sNUM, defa: sFLS],
 	'wind_direction':			[t: 'Wind direction', d: 'Display the Wind Direction (text words)?', ty: sSTR, defa: sFLS],
 	'wind_gust':				[t: 'Wind gust (in default unit)', d: 'Display the Wind Gust?', ty: sNUM, defa: sFLS],
@@ -1922,7 +2074,7 @@ void updateCheck()
 
 void updateCheckHandler(resp, data) {
 	state.InternalName = 'OpenWeatherMap-Alerts Weather Driver'
-	Boolean descTextEnable = settings.logSet ?: false
+	Boolean descTextEnable = settings.txtEnable ?: false
 	if (resp.getStatus() == 200 || resp.getStatus() == 207) {
 		Map respUD = parseJson(resp.data)
 		// log.warn " Version Checking - Response Data: $respUD"   // Troubleshooting Debug Code - Uncommenting this line should show the JSON response from your webserver
@@ -1984,4 +2136,4 @@ static String padVer(String ver) {
 	return pad
 }
 
-static String getThisCopyright(){'&copy; 2020 Matthew (scottma61) '}
+static String getThisCopyright(){'&copy; 2023 Matthew (scottma61) '}
