@@ -1754,8 +1754,11 @@ def estimateLux(Integer condition_id, Integer cloud) {
 	}
 	String cC = condition_id.toString()
 	String cCT = ' using cloud cover from API'
+    String sPop1hr = myGetData('pop1hr')
+    Double cloudImpact = 3d
+    if (sPop1hr) cloudImpact -= 2 * (sPop1hr as double)
     Double cloudPct = cloud == null ? null : cloud/100
-	Double cCF = (!cloud || cloud==sBLK) ? 0.998d : Math.max(0.003, (1 - (cloudPct * cloudPct)))
+	Double cCF = (!cloud || cloud==sBLK) ? 0.998d : Math.max(0.003, (1 - (cloudPct / cloudImpact)))
 	if(aFCC){
 		if(!cloud){
 			Map LUitem = LUTable.find{ Map it -> (Integer)it.id == condition_id }
@@ -1768,6 +1771,7 @@ def estimateLux(Integer condition_id, Integer cloud) {
 			}
 		}
 	}
+    Long rawLux = lux
 	lux = (lux * cCF) as Long
 	Boolean t_jitter = (!settings.luxjitter) ? false : settings.luxjitter
 	if(t_jitter){
@@ -1783,7 +1787,7 @@ def estimateLux(Integer condition_id, Integer cloud) {
 		}
 	}
 	lux = Math.max(lux, 5)
-	LOGINFO('estimateLux results: condition: ' + cC + ' | condition factor: ' + cCF + ' | condition text: ' + cCT + '| lux: ' + lux)
+	LOGINFO('estimateLux results: condition: ' + cC + ' | condition factor: ' + cCF + ' | condition text: ' + cCT + '| lux: ' + lux + ' | rawLux: ' + rawLux + ' | cloudPct: ' + cloudPct + ' | cloudImpact: ' + cloudImpact)
 	return [lux, bwn]
 }
 
