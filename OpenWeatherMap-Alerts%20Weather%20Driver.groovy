@@ -238,6 +238,7 @@ metadata {
 		attribute 'cloudDayAfterTomorrow', sNUM
 
 		command 'pollData'
+        command 'recalculateLux'
 	}
 
 	preferences() {
@@ -963,9 +964,13 @@ def pageDump(){
 	log.info message
 }
 
+def recalculateLux() {
+    sendEvent(name: 'illuminance', value: updateLux(false), unit: 'lx')
+}
+
 
 // >>>>>>>>>> Begin Lux Processing <<<<<<<<<<
-void updateLux(Boolean pollAgain=true) {
+Long updateLux(Boolean pollAgain=true) {
 	if(ifreInstalled()) { updated(); return }
 	LOGINFO('Calling UpdateLux(' + pollAgain + ')')
 	if(pollAgain) {
@@ -987,6 +992,7 @@ void updateLux(Boolean pollAgain=true) {
 	myUpdData('illuminated', String.format('%,4d', (!lux) ? 0 : lux).toString())
 	myUpdData('bwn', bwn)
 	if(pollAgain) PostPoll()
+    return lux
 }
 // >>>>>>>>>> End Lux Processing <<<<<<<<<<
 
@@ -1644,7 +1650,8 @@ void setDisplayDecimals(String TWDDisp, String PressDisp, String RainDisp) {
 
 def estimateLux() {
     String cloudData = myGetData('cloud')
-	return estimateLux(myGetData('condition_id').toInteger(), cloudData == null ? null : cloudData.toInteger())
+    String conditionData = myGetData('condition_id')
+	return estimateLux(conditionData == null ? null : conditionData.toInteger(), cloudData == null ? null : cloudData.toInteger())
 }
 
 def estimateLux(Integer condition_id, Integer cloud) {
@@ -1752,7 +1759,7 @@ def estimateLux(Integer condition_id, Integer cloud) {
 			aFCC = false
 			break
 	}
-	String cC = condition_id.toString()
+	String cC = condition_id?.toString()
 	String cCT = ' using cloud cover from API'
     String sPop1hr = myGetData('pop1hr')
     Double cloudImpact = 3d
