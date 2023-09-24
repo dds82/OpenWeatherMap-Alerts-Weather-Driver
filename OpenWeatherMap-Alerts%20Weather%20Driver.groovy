@@ -1264,7 +1264,7 @@ void PostPoll() {
 
 void buildweatherSummary() {
 	//  <<<<<<<<<< Begin Built Weather Summary text >>>>>>>>>>
-	String ddisp_twd = myGetData('ddisp_sum')==sNULL ? '%3.0f' : myGetData('ddisp_sum')
+	String ddisp_twd = myGetData('ddisp_twd')==sNULL ? '%3.0f' : myGetData('ddisp_twd')
 
 	if(weatherSummaryPublish){ // don't bother setting these values if it's not enabled
 		String Summary_forecastTemp = ' with a high of ' + String.format(ddisp_twd, myGetDataBD('forecastHigh')) + myGetData(sTMETR) + ' and a low of ' + String.format(ddisp_twd, myGetDataBD('forecastLow')) + myGetData(sTMETR) + '. '
@@ -1610,7 +1610,6 @@ void setDisplayDecimals(String TWDDisp, String PressDisp, String RainDisp) {
 	String mult_p
 	String ddisp_r
 	String mult_r
-    String ddisp_sum
 	switch(TWDDisp) {
 		case sZERO: ddisp_twd = '%3.0f'; mult_twd = sONE; break
 		case sONE: ddisp_twd = '%3.1f'; mult_twd = '10'; break
@@ -1621,7 +1620,6 @@ void setDisplayDecimals(String TWDDisp, String PressDisp, String RainDisp) {
 	}
 	myUpdData('ddisp_twd', ddisp_twd)
 	myUpdData('mult_twd', mult_twd)
-    myUpdData('ddisp_sum', ddisp_sum)
 	switch(PressDisp) {
 		case sZERO: ddisp_p = '%,4.0f'; mult_p = sONE; break
 		case sONE: ddisp_p = '%,4.1f'; mult_p = '10'; break
@@ -1815,8 +1813,7 @@ void SummaryMessage(Boolean SType, String Slast_poll_date, String Slast_poll_tim
 		wSum+= Svis
 		wSum+= alertPublish ? ((!myGetData('alert') || myGetData('alert')==sNULL) ? sBLK : sSPC + myGetData('alert') + sDOT) : sBLK
 	}else{
-        wSum = "Currently, it's " + String.format(myGetData('ddisp_sum'), myGetDataBD(sTEMP)) + myGetData(sTMETR) + " outside, and it feels like " + String.format(myGetData('ddisp_sum'), myGetDataBD('feelsLike')) + myGetData(sTMETR) + ". "
-		wSum += "Today's forecast is: " + myGetData('condition_text') + sSPC
+	        wSum = myGetData('condition_text') + sSPC
 		wSum+= ((!SforecastTemp || SforecastTemp==sBLK) ? '. ' : SforecastTemp)
 		wSum+= ' Humidity: ' + myGetData('humidity') + '%. Temperature: ' + String.format(myGetData('ddisp_twd'), myGetDataBD(sTEMP)) + myGetData(sTMETR) + '. '
 		wSum+= myGetData('wind_string') + ', gusts: ' + ((windgust == 0.00) ? 'calm. ' : 'up to ' + windgust + sSPC + myGetData(sDMETR) + sDOT)
