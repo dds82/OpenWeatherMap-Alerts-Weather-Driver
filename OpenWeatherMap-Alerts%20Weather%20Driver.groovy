@@ -48,10 +48,12 @@
 	on an 'AS IS' BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
 	for the specific language governing permissions and limitations under the License.
 
-	Last Update 07/29/2024
+	Last Update 03/19/2026
 	{ Left room below to document version changes...}
 
-    V0.7.1	07/29/2024	Added attribute 'alertDescrFull' that contain the full text of up to 10 current alerts.
+    V0.7.3	03/19/2026	Clear NWS alerts after they expire (@rschumaker).
+	V0.7.2	01/17/2026	Replaced small icons with unicode charactersin dashboard tiles.
+	V0.7.1	07/29/2024	Added attribute 'alertDescrFull' that contain the full text of up to 10 current alerts.
     V0.7.0	05/13/2024	Corrected moon_phase.
     V0.6.9	04/17/2024	Added moonrise, moonset and moon_phase attributes.
     V0.6.8	08/31/2023	Added pull request from @nh.schottfam to display sun 'altitude' & 'azimuth' as stand-alone optional attributes. Code cleanups.
@@ -143,7 +145,7 @@ The way the 'optional' attributes work:
 //file:noinspection GroovyAssignabilityCheck
 //file:noinspection GrDeprecatedAPIUsage
 
-static String version()	{  return '0.7.1'  }
+static String version()	{  return '0.7.3'  }
 import groovy.transform.Field
 
 metadata {
@@ -273,7 +275,7 @@ metadata {
 			input 'rainFormat', 'enum', required: true, defaultValue: 'Inches', title: 'Display Unit - Precipitation: Inches or Millimeters',  options: ['Inches', 'Millimeters']
 			input 'luxjitter', 'bool', title: 'Use lux jitter control (rounding)?', required: true, defaultValue: false
 //	https://tinyurl.com/icnqz/ points to https://raw.githubusercontent.com/HubitatCommunity/WeatherIcons/master/
-			input 'iconLocation', 'text', required: true, defaultValue: 'https://tinyurl.com/icnqz/', title: 'Alternative Icon Location:'
+			input 'iconLocation', 'text', required: false, defaultValue: '', title: 'Alternative Icon Location:<br><i>blank for default location</i>'
 			input 'iconType', 'bool', title: 'Condition Icon/Text for current day on MyTile & Three Day Forecast Tile: On=Current or Off=Forecast', required: true, defaultValue: false
 			input 'altCoord', 'bool', required: true, defaultValue: false, title: "Override Hub's location coordinates"
 			if (altCoord) {
@@ -296,7 +298,7 @@ metadata {
 		}
 	}
 }
-
+iconLocation = (!iconLocation || iconLocation == null) ? 'https://raw.githubusercontent.com/HubitatCommunity/WeatherIcons/master/' : iconLocation
 @Field static final String sNULL=(String)null
 @Field static final String sAB='<a>'
 @Field static final String sACB='</a>'
@@ -723,6 +725,16 @@ void pollOWMHandler(resp, data) {
 							}
 						}
                         myUpdData('alertCnt', alertCnt.toString())
+// ADD: If NWS confirms no active alerts, clear immediately rather than
+// waiting for the next OWM poll to evaluate the now-updated curAl.
+// This also handles the case where prior pollWDGHandler calls failed
+// with HTTP errors, leaving curAl permanently stale.
+				        if(myGetData('curAl') == sNCWA) {
+            				clearAlerts()
+            				sendEvent(name: 'alert', value: myGetData('alert'))
+            				sendEvent(name: 'alertDescr', value: myGetData('alertDescr'))
+            				sendEvent(name: 'alertSender', value: myGetData('alertSender'))
+        				}
                         myUpdData('alertDescrFull', alertDescrFull)
                         LOGINFO('OWM Weather Alert: alertDescrFull Length: ' + myGetData('alertDescrFull').length() + '; Description: ' + myGetData('alertDescrFull'))
 					}
@@ -734,7 +746,7 @@ void pollOWMHandler(resp, data) {
 					myUpdData('alertLink',  '<a style="font-style:italic;color:red">'+myGetData('alert')+sACB)
 				}else{
 					myUpdData('alert', myGetData('curAl') + (myGetData('alertCnt') != sZERO ? ' +' + myGetData('alertCnt') : sBLK))
-					myUpdData('alertTileLink', '<a style="font-style:italic;color:red" href="https://tinyurl.com/zznws?lat=' + altLat + '&lon=' + altLon +'" target=\'_blank\'>'+myGetData('alert')+sACB)
+					myUpdData('alertTileLink', '<a style="font-style:italic;color:red" href="https://forecast.weather.gov/MapClick.php?lat=' + altLat + '&lon=' + altLon +'" target=\'_blank\'>'+myGetData('alert')+sACB)
 					myUpdData('alertLink',  '<a style="font-style:italic;color:red">'+myGetData('alert')+sACB)
 					if(myGetData('curAl')==sNCWA) {
 						clearAlerts()
@@ -753,7 +765,7 @@ void pollOWMHandler(resp, data) {
 				alertTile+= '<a href="https://openweathermap.org/city/' + myGetData('OWML') + '" target="_blank">' + sIMGS5 + myGetData(sICON) + 'OWM.png style="height:2em"></a> @ ' + myGetData(sSUMLST)
 			}else{
 				if(alertSource==sTWO) {
-					alertTile+= '<a href=https://tinyurl.com/zznws?lat=' + altLat + '&lon=' + altLon + '" target="_blank">' + sIMGS5 + myGetData(sICON) + 'NWS_240px.png style="height:2em"></a> @ ' + myGetData(sSUMLST)
+					alertTile+= '<a href=https://forecast.weather.gov/MapClick.php?lat=' + altLat + '&lon=' + altLon + '" target="_blank">' + sIMGS5 + myGetData(sICON) + 'NWS_240px.png style="height:2em"></a> @ ' + myGetData(sSUMLST)
 				}
 			}
 			myUpdData('alertTile', alertTile)
@@ -1249,8 +1261,8 @@ void PostPoll() {
 		OWMIcon = '<a href="https://openweathermap.org/city/' + myGetData('OWML') + '" target="_blank">' + sIMGS5 + myGetData(sICON) + 'OWM.png style="height:2em"></a> @ ' + myGetData(sSUMLST)
 		OWMText = '<a href="https://openweathermap.org" target="_blank">OpenWeatherMap.org</a> @ ' + myGetData(sSUMLST)
 	}else{
-		OWMIcon = '<a href="https://tinyurl.com/zznws?lat=' + altLat + '&lon=' + altLon + '" target="_blank">' + sIMGS5 + myGetData(sICON) + 'NWS_240px.png style="height:2em"></a> @ ' + myGetData(sSUMLST)
-		OWMText = '<a href="https://tinyurl.com/zznws?lat=' + altLat + '&lon=' + altLon + '" target="_blank">Weather.gov</a> @ ' + myGetData(sSUMLST)
+		OWMIcon = '<a href="https://forecast.weather.gov/MapClick.php?lat=' + altLat + '&lon=' + altLon + '" target="_blank">' + sIMGS5 + myGetData(sICON) + 'NWS_240px.png style="height:2em"></a> @ ' + myGetData(sSUMLST)
+		OWMText = '<a href="https://forecast.weather.gov/MapClick.php?lat=' + altLat + '&lon=' + altLon + '" target="_blank">Weather.gov</a> @ ' + myGetData(sSUMLST)
 	}
 //  <<<<<<<<<< Begin Built 3dayfcstTile >>>>>>>>>>
 	if(threedayTilePublish) {
@@ -1292,7 +1304,8 @@ void PostPoll() {
 		my3day += sTD + myGetData('PoP1') + '% ' + (myGetDataBD('Precip1') > 0 ? String.format(ddisp_r, myGetDataBD('Precip1')) + myGetData(sRMETR) : 'None')
 		my3day += sTD + myGetData('PoP2') + '% ' + (myGetDataBD('Precip2') > 0 ? String.format(ddisp_r, myGetDataBD('Precip2')) + myGetData(sRMETR) : 'None')
 		my3day += '<tr style="font-size:85%">' + '<td  colspan="4">'
-		my3day += sIMGS8 + myGetData(sICON) + 'wsr.png' + iconClose + myGetData('localSunrise') + sSPC + sIMGS8 + myGetData(sICON) + 'wss.png' + iconClose + myGetData('localSunset')
+//		my3day += sIMGS8 + myGetData(sICON) + 'wsr.png' + iconClose + myGetData('localSunrise') + sSPC + sIMGS8 + myGetData(sICON) + 'wss.png' + iconClose + myGetData('localSunset')
+		my3day += '☀ ' + myGetData('localSunrise') + sSPC + '☽ ' + myGetData('localSunset')        
 
 		if((my3day.length() + OWMIcon.length()+8) < 1025) {
 			my3day += OWMIcon
@@ -1338,8 +1351,8 @@ void buildMyText() {
 		OWMIcon = '<a href="https://openweathermap.org/city/' + myGetData('OWML') + '" target="_blank">' + sIMGS5 + myGetData(sICON) + 'OWM.png style="height:2em"></a> @ ' + myGetData(sSUMLST)
 		OWMText = '<a href="https://openweathermap.org" target="_blank">OpenWeatherMap.org</a> @ ' + myGetData(sSUMLST)
 	}else{
-		OWMIcon = '<a href="https://tinyurl.com/zznws?lat=' + altLat + '&lon=' + altLon + '" target="_blank">' + sIMGS5 + myGetData(sICON) + 'NWS_240px.png style="height:2em"></a> @ ' + myGetData(sSUMLST)
-		OWMText = '<a href="https://tinyurl.com/zznws?lat=' + altLat + '&lon=' + altLon + '" target="_blank">Weather.gov</a> @ ' + myGetData(sSUMLST)
+		OWMIcon = '<a href="https://forecast.weather.gov/MapClick.php?lat=' + altLat + '&lon=' + altLon + '" target="_blank">' + sIMGS5 + myGetData(sICON) + 'NWS_240px.png style="height:2em"></a> @ ' + myGetData(sSUMLST)
+		OWMText = '<a href="https://forecast.weather.gov/MapClick.php?lat=' + altLat + '&lon=' + altLon + '" target="_blank">Weather.gov</a> @ ' + myGetData(sSUMLST)
 	}
 	if(myTilePublish) { // don't bother setting these values if it's not enabled
 		Boolean gitclose = (myGetData(sICON).toLowerCase().contains('://github.com/')) && (myGetData(sICON).toLowerCase().contains('/blob/master/'))
@@ -1362,14 +1375,17 @@ void buildMyText() {
 		LOGINFO("myGetData('imgName0') is " + myGetData('imgName0'))
 		mytext += sTR + String.format(ddisp_twd, myGetDataBD(sTEMP)) + myGetData(sTMETR) + myGetData('imgName0')
 		mytext += 'Feels like ' + String.format(ddisp_twd, myGetDataBD('feelsLike')) + myGetData(sTMETR)
-		mytext += '<tr style="font-size:85%">' + sTD + sIMGS8 + myGetData(sICON) + myGetData('wind_bft_icon') + iconClose + myGetData('wind_direction') + sSPC
+//		mytext += '<tr style="font-size:85%">' + sTD + sIMGS8 + myGetData(sICON) + myGetData('wind_bft_icon') + iconClose + myGetData('wind_direction') + sSPC
+		mytext += '<tr style="font-size:85%">' + sTD + '༄ ' + myGetData('wind_direction') + sSPC        
 		mytext += (myGetDataBD('wind') < 1.0 ? 'calm' : '@ ' + String.format(ddisp_twd, myGetDataBD('wind')) + sSPC + myGetData(sDMETR))
 		mytext += ', gusts ' + ((wgust < 1.0) ? 'calm' : '@ ' + String.format(ddisp_twd, wgust) + sSPC + myGetData(sDMETR))
 
 		String mytexte
-		mytexte = '<tr style="font-size:80%">' + sTD + sIMGS8 + myGetData(sICON) + 'wb.png' + iconClose + String.format(ddisp_p, myGetDataBD('pressure')) + sSPC + myGetData(sPMETR) + sSPC + sIMGS8 + myGetData(sICON) + 'wh.png' + iconClose
-		mytexte += myGetData('humidity') + '%' + sSPC + sIMGS8 + myGetData(sICON) + 'wu.png' + iconClose + myGetData('percentPrecip') + '%' + sSPC + sIMGS8 + myGetData(sICON) + 'wr.png' + iconClose + (myGetDataBD('rainToday') > 0 ? String.format(ddisp_r, myGetDataBD('rainToday')) + sSPC + myGetData(sRMETR) : 'None') + sBR
-		mytexte += sIMGS8 + myGetData(sICON) + 'wsr.png' + iconClose + myGetData('localSunrise') + sSPC + sIMGS8 + myGetData(sICON) + 'wss.png' + iconClose + myGetData('localSunset')
+//		mytexte = '<tr style="font-size:80%">' + sTD + sIMGS8 + myGetData(sICON) + 'wb.png' + iconClose + String.format(ddisp_p, myGetDataBD('pressure')) + sSPC + myGetData(sPMETR) + sSPC + sIMGS8 + myGetData(sICON) + 'wh.png' + iconClose
+		mytexte = '<tr style="font-size:80%">' + sTD + '⏲ ' + String.format(ddisp_p, myGetDataBD('pressure')) + sSPC + myGetData(sPMETR) + sSPC + '💦 '        
+//		mytexte += myGetData('humidity') + '%' + sSPC + sIMGS8 + myGetData(sICON) + 'wu.png' + iconClose + myGetData('percentPrecip') + '%' + sSPC + sIMGS8 + myGetData(sICON) + 'wr.png' + iconClose + (myGetDataBD('rainToday') > 0 ? String.format(ddisp_r, myGetDataBD('rainToday')) + sSPC + myGetData(sRMETR) : 'None') + sBR
+		mytexte += myGetData('humidity') + '%' + sSPC + '☂ ' + myGetData('percentPrecip') + '%' + sSPC + '🪣 ' + (myGetDataBD('rainToday') > 0 ? String.format(ddisp_r, myGetDataBD('rainToday')) + sSPC + myGetData(sRMETR) : 'None') + sBR        
+		mytexte += '☀ ' + myGetData('localSunrise') + sSPC + '☽ ' + myGetData('localSunset')
 		if ((mytext.length() + mytexte.length() + OWMIcon.length() + 8) < 1025) {
 			mytext += mytexte + OWMIcon
 		} else {
@@ -1486,7 +1502,7 @@ void initMe() {
 	Boolean iconType = (settings.iconType ?: false)
 	myUpdData('iconType', iconType ? sTRU : sFLS)
 //	https://tinyurl.com/icnqz/ points to https://raw.githubusercontent.com/HubitatCommunity/WeatherIcons/master/
-	String iconLocation = (settings.iconLocation ?: 'https://tinyurl.com/icnqz/')
+	String iconLocation = (settings.iconLocation ?: 'https://raw.githubusercontent.com/HubitatCommunity/WeatherIcons/master/')
 	myUpdData(sICON, iconLocation)
 	state.OWM = '<a href="https://openweathermap.org" target="_blank">'+sIMGS5 + myGetData(sICON) + 'OWM.png style="height:2em"></a>'
 	setDateTimeFormats((String)settings.datetimeFormat)
