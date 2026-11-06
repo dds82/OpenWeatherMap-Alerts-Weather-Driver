@@ -1874,7 +1874,7 @@ void SummaryMessage(Boolean SType, String Slast_poll_date, String Slast_poll_tim
 		windgust = myGetDataBD('wind_gust')
 	}
 	String wSum // = (String)null
-    final String windData = myGetData('wind_string') + ((windgust < 1.00) ? ' and calm. ' : ' with gusts up to ' + String.format('%3.0f', windgust) + sSPC + myGetData(sDMETR) + sDOT)
+    final String windData = myGetData('wind_string') + ((windgust < 1.00) ? '' : ' with gusts up to ' + String.format('%3.0f', windgust) + sSPC + myGetData(sDMETR)) + sDOT
     
     if(weatherSummaryPublish || weatherSpeakPublish){
         if(SType){
@@ -1901,7 +1901,7 @@ void SummaryMessage(Boolean SType, String Slast_poll_date, String Slast_poll_tim
         String wSpeak = myGetData('condition_text') + sSPC
 		wSpeak += ((!SforecastTemp || SforecastTemp==sBLK) ? '. ' : SforecastTemp)
         wSpeak += 'It is currently ' + String.format('%3.0f', myGetDataBD(sTEMP)) + myGetData(sTMETR) + ', and feels like ' + String.format('%3.0f', myGetDataBD('feelsLike')) + myGetData(sTMETR) + '. '
-        wSpeak += windData
+        wSpeak += 'There is a ' + windData.substring(0, 1).toLowerCase() + windData.substring(1)
         sendEvent(name: 'weatherSpeak', value: wSpeak)
     }
 }
