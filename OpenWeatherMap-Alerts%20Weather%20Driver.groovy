@@ -1330,7 +1330,7 @@ void buildweatherSummary() {
 	//  <<<<<<<<<< Begin Built Weather Summary text >>>>>>>>>>
 	String ddisp_twd = '%3.0f'
 
-	if(weatherSummaryPublish){ // don't bother setting these values if it's not enabled
+	if(weatherSummaryPublish || weatherSpeakPublish){ // don't bother setting these values if it's not enabled
 		String Summary_forecastTemp = ' with a high of ' + String.format(ddisp_twd, myGetDataBD('forecastHigh')) + myGetData(sTMETR) + ' and a low of ' + String.format(ddisp_twd, myGetDataBD('forecastLow')) + myGetData(sTMETR) + '. '
 		String Summary_precip = 'There is a ' + myGetData('percentPrecip') + '% chance of precipitation. '
 		LOGINFO('Summary_precip: ' + Summary_precip)
@@ -1874,32 +1874,36 @@ void SummaryMessage(Boolean SType, String Slast_poll_date, String Slast_poll_tim
 		windgust = myGetDataBD('wind_gust')
 	}
 	String wSum // = (String)null
-    String wSpeak
-    String windData
-	if(SType){
-		wSum = 'Weather summary for ' + myGetData('city') + ' updated at ' + Slast_poll_time + ' on ' + Slast_poll_date + '. '
-		wSum+= myGetData('condition_text')
-		wSum+= (!SforecastTemp || SforecastTemp==sBLK) ? '. ' : SforecastTemp
-		wSum+= 'Humidity is ' + myGetData('humidity') + '% and the temperature is ' + String.format(myGetData('ddisp_twd'), myGetDataBD(sTEMP)) + myGetData(sTMETR) + '. '
-		wSum+= 'The temperature feels like it is ' + String.format(myGetData('ddisp_twd'), myGetDataBD('feelsLike')) + myGetData(sTMETR) + '. '
-		wSum+= 'Wind: ' + myGetData('wind_string') + ', gusts: ' + ((windgust < 1.00) ? 'calm. ' : 'up to ' + windgust.toString() + sSPC + myGetData(sDMETR) + '. ')
-		wSum+= Sprecip
-		wSum+= Svis
-		wSum+= alertPublish ? ((!myGetData('alert') || myGetData('alert')==sNULL) ? sBLK : sSPC + myGetData('alert') + sDOT) : sBLK
-	}else{
-	    wSum = myGetData('condition_text') + sSPC
-		wSum+= ((!SforecastTemp || SforecastTemp==sBLK) ? '. ' : SforecastTemp)
-        wSpeak = wSum
-		wSum+= ' Humidity: ' + myGetData('humidity') + '%. Temperature: ' + String.format('%3.0f', myGetDataBD(sTEMP)) + myGetData(sTMETR) + '. '
-		windData = myGetData('wind_string') + ((windgust == 0.00) ? ' and calm. ' : ' with gusts up to ' + String.format('%3.0f', windgust) + sSPC + myGetData(sDMETR) + sDOT)
-        wSum += windData
-	}
-	wSum = wSum.take(1024)
-	sendEvent(name: 'weatherSummary', value: wSum)
+    final String windData = myGetData('wind_string') + ((windgust < 1.00) ? ' and calm. ' : ' with gusts up to ' + String.format('%3.0f', windgust) + sSPC + myGetData(sDMETR) + sDOT)
     
-    wSpeak += 'It is currently ' + String.format('%3.0f', myGetDataBD(sTEMP)) + myGetData(sTMETR) + ', and feels like ' + String.format('%3.0f', myGetDataBD('feelsLike')) + myGetData(sTMETR) + '. '
-    wSpeak += windData
-    sendEvent(name: 'weatherSpeak', value: wSpeak)
+    if(weatherSummaryPublish || weatherSpeakPublish){
+        if(SType){
+            wSum = 'Weather summary for ' + myGetData('city') + ' updated at ' + Slast_poll_time + ' on ' + Slast_poll_date + '. '
+            wSum+= myGetData('condition_text')
+            wSum+= (!SforecastTemp || SforecastTemp==sBLK) ? '. ' : SforecastTemp
+            wSum+= 'Humidity is ' + myGetData('humidity') + '% and the temperature is ' + String.format(myGetData('ddisp_twd'), myGetDataBD(sTEMP)) + myGetData(sTMETR) + '. '
+            wSum+= 'The temperature feels like it is ' + String.format(myGetData('ddisp_twd'), myGetDataBD('feelsLike')) + myGetData(sTMETR) + '. '
+            wSum+= 'Wind: ' + windData
+            wSum+= Sprecip
+            wSum+= Svis
+            wSum+= alertPublish ? ((!myGetData('alert') || myGetData('alert')==sNULL) ? sBLK : sSPC + myGetData('alert') + sDOT) : sBLK
+        }else{
+            wSum = myGetData('condition_text') + sSPC
+            wSum+= ((!SforecastTemp || SforecastTemp==sBLK) ? '. ' : SforecastTemp)
+            wSum+= ' Humidity: ' + myGetData('humidity') + '%. Temperature: ' + String.format('%3.0f', myGetDataBD(sTEMP)) + myGetData(sTMETR) + '. '
+            wSum += windData
+        }
+        wSum = wSum.take(1024)
+        sendEvent(name: 'weatherSummary', value: wSum)
+    }
+    
+    if (weatherSpeakPublish) {
+        String wSpeak = myGetData('condition_text') + sSPC
+		wSpeak += ((!SforecastTemp || SforecastTemp==sBLK) ? '. ' : SforecastTemp)
+        wSpeak += 'It is currently ' + String.format('%3.0f', myGetDataBD(sTEMP)) + myGetData(sTMETR) + ', and feels like ' + String.format('%3.0f', myGetDataBD('feelsLike')) + myGetData(sTMETR) + '. '
+        wSpeak += windData
+        sendEvent(name: 'weatherSpeak', value: wSpeak)
+    }
 }
 
 String getImgName(Integer wCode, String iconTOD){
@@ -2135,6 +2139,7 @@ LinkedHashMap<String,Double> getPosition() {
 	'suncalc':					[t: 'Sun calculations', d: 'Display Altitude and Azuimuth of Sun?', ty: false, defa: sFLS],
 	'vis':						[t: 'Visibility (in default unit)', d: 'Display visibility distance?', ty: sNUM, defa: sFLS],
 	'weatherSummary':			[t: 'Weather Summary Message', d: 'Display the Weather Summary?', ty: sSTR, defa: sFLS],
+    'weatherSpeak':				[t: 'Weather Spoken Forecast', d: 'Generate a TTS Weather Forecast?', ty: sSTR, defa: sFLS],
 	'wind_cardinal':			[t: 'Wind Cardinal', d: 'Display the Wind Direction (text initials)?', ty: sSTR, defa: sFLS],
 	'wind_degree':				[t: 'Wind Degree', d: 'Display the Wind Direction (number)?', ty: sNUM, defa: sFLS],
 	'wind_direction':			[t: 'Wind direction', d: 'Display the Wind Direction (text words)?', ty: sSTR, defa: sFLS],
