@@ -561,7 +561,7 @@ void pollOWMHandler(resp, data) {
 		}
 		myUpdData('wind_direction', w_direction)
 		myUpdData('wind_cardinal', w_cardinal)
-		myUpdData('wind_string', w_string_bft + ' from the ' + myGetData('wind_direction') + (myGetDataBD('wind') < 1.0 ? sBLK: ' at ' + String.format(ddisp_twd, myGetDataBD('wind')) + sSPC + myGetData(sDMETR)))
+		myUpdData('wind_string', w_string_bft + ' from the ' + myGetData('wind_direction') + (myGetDataBD('wind') < 1.0 ? sBLK: ' at ' + String.format('%3.0f', myGetDataBD('wind')) + sSPC + myGetData(sDMETR)))
 // >>>>>>>>>> End Process Standard Weather-Station Variables (Regardless of Forecast Selection)  <<<<<<<<<<
 
 		Integer cloudCover = owm?.current?.clouds==null ? 1 : owm.current.clouds <= 1 ? 1 : owm.current.clouds
@@ -1254,6 +1254,7 @@ void PostPoll() {
 	}
 //  <<<<<<<<<< Begin Built 3dayfcstTile >>>>>>>>>>
 	if(threedayTilePublish) {
+        final String constFormat = '%3.0f'
 		Boolean gitclose = (myGetData(sICON).toLowerCase().contains('://github.com/')) && (myGetData(sICON).toLowerCase().contains('/blob/master/'))
 		String iconClose = (gitclose ? '?raw=true>' : sRB)
 		String my3day
@@ -1265,7 +1266,7 @@ void PostPoll() {
 		my3day += sTD + myGetData('day1')
 		my3day += sTD + myGetData('day2')
 		my3day += sTR
-		my3day += 'Now' + String.format(ddisp_twd, myGetDataBD(sTEMP)) + tmetr + sBR + 'Feels' + String.format(ddisp_twd, myGetDataBD('feelsLike')) + tmetr
+		my3day += 'Now' + String.format(constFormat, myGetDataBD(sTEMP)) + tmetr + sBR + 'Feels' + String.format(constFormat, myGetDataBD('feelsLike')) + tmetr
 		my3day += sTD + myGetData('imgName0')
 		my3day += sTD + myGetData('imgName1')
 		my3day += sTD + myGetData('imgName2')
@@ -1276,14 +1277,14 @@ void PostPoll() {
 		my3day += sTR
 		if(myGetData('threedayLH')==sFLS){
 			my3day += 'Low High'
-			my3day += sTD + String.format(ddisp_twd, myGetDataBD('forecastLow')) + tmetr + sSPC + String.format(ddisp_twd, myGetDataBD('forecastHigh')) + tmetr
-			my3day += sTD + String.format(ddisp_twd, myGetDataBD('forecastLow1')) + tmetr + sSPC + String.format(ddisp_twd, myGetDataBD('forecastHigh1')) + tmetr
-			my3day += sTD + String.format(ddisp_twd, myGetDataBD('forecastLow2')) + tmetr + sSPC + String.format(ddisp_twd, myGetDataBD('forecastHigh2')) + tmetr
+			my3day += sTD + String.format(constFormat, myGetDataBD('forecastLow')) + tmetr + sSPC + String.format(constFormat, myGetDataBD('forecastHigh')) + tmetr
+			my3day += sTD + String.format(constFormat, myGetDataBD('forecastLow1')) + tmetr + sSPC + String.format(constFormat, myGetDataBD('forecastHigh1')) + tmetr
+			my3day += sTD + String.format(constFormat, myGetDataBD('forecastLow2')) + tmetr + sSPC + String.format(constFormat, myGetDataBD('forecastHigh2')) + tmetr
 		}else{
 			my3day += 'High Low'
-			my3day += sTD + String.format(ddisp_twd, myGetDataBD('forecastHigh')) + tmetr + sSPC + String.format(ddisp_twd, myGetDataBD('forecastLow')) + tmetr
-			my3day += sTD + String.format(ddisp_twd, myGetDataBD('forecastHigh1')) + tmetr + sSPC + String.format(ddisp_twd, myGetDataBD('forecastLow1')) + tmetr
-			my3day += sTD + String.format(ddisp_twd, myGetDataBD('forecastHigh2')) + tmetr + sSPC + String.format(ddisp_twd, myGetDataBD('forecastLow2')) + tmetr
+			my3day += sTD + String.format(constFormat, myGetDataBD('forecastHigh')) + tmetr + sSPC + String.format(constFormat, myGetDataBD('forecastLow')) + tmetr
+			my3day += sTD + String.format(constFormat, myGetDataBD('forecastHigh1')) + tmetr + sSPC + String.format(constFormat, myGetDataBD('forecastLow1')) + tmetr
+			my3day += sTD + String.format(constFormat, myGetDataBD('forecastHigh2')) + tmetr + sSPC + String.format(constFormat, myGetDataBD('forecastLow2')) + tmetr
 		}
 		my3day += sTR
 		my3day += 'PoP Precip'
@@ -1314,7 +1315,7 @@ void PostPoll() {
 
 void buildweatherSummary() {
 	//  <<<<<<<<<< Begin Built Weather Summary text >>>>>>>>>>
-	String ddisp_twd = myGetData('ddisp_twd')==sNULL ? '%3.0f' : myGetData('ddisp_twd')
+	String ddisp_twd = '%3.0f'
 
 	if(weatherSummaryPublish){ // don't bother setting these values if it's not enabled
 		String Summary_forecastTemp = ' with a high of ' + String.format(ddisp_twd, myGetDataBD('forecastHigh')) + myGetData(sTMETR) + ' and a low of ' + String.format(ddisp_twd, myGetDataBD('forecastLow')) + myGetData(sTMETR) + '. '
@@ -1857,6 +1858,8 @@ void SummaryMessage(Boolean SType, String Slast_poll_date, String Slast_poll_tim
 		windgust = myGetDataBD('wind_gust')
 	}
 	String wSum // = (String)null
+    String wSpeak
+    String windData
 	if(SType){
 		wSum = 'Weather summary for ' + myGetData('city') + ' updated at ' + Slast_poll_time + ' on ' + Slast_poll_date + '. '
 		wSum+= myGetData('condition_text')
@@ -1868,13 +1871,19 @@ void SummaryMessage(Boolean SType, String Slast_poll_date, String Slast_poll_tim
 		wSum+= Svis
 		wSum+= alertPublish ? ((!myGetData('alert') || myGetData('alert')==sNULL) ? sBLK : sSPC + myGetData('alert') + sDOT) : sBLK
 	}else{
-	        wSum = myGetData('condition_text') + sSPC
+	    wSum = myGetData('condition_text') + sSPC
 		wSum+= ((!SforecastTemp || SforecastTemp==sBLK) ? '. ' : SforecastTemp)
-		wSum+= ' Humidity: ' + myGetData('humidity') + '%. Temperature: ' + String.format(myGetData('ddisp_twd'), myGetDataBD(sTEMP)) + myGetData(sTMETR) + '. '
-		wSum+= myGetData('wind_string') + ', gusts: ' + ((windgust == 0.00) ? 'calm. ' : 'up to ' + windgust + sSPC + myGetData(sDMETR) + sDOT)
+        wSpeak = wSum
+		wSum+= ' Humidity: ' + myGetData('humidity') + '%. Temperature: ' + String.format('%3.0f', myGetDataBD(sTEMP)) + myGetData(sTMETR) + '. '
+		windData = myGetData('wind_string') + ((windgust == 0.00) ? ' and calm. ' : ' with gusts up to ' + String.format('%3.0f', windgust) + sSPC + myGetData(sDMETR) + sDOT)
+        wSum += windData
 	}
 	wSum = wSum.take(1024)
 	sendEvent(name: 'weatherSummary', value: wSum)
+    
+    wSpeak += 'It is currently ' + String.format('%3.0f', myGetDataBD(sTEMP)) + myGetData(sTMETR) + ', and feels like ' + String.format('%3.0f', myGetDataBD('feelsLike')) + myGetData(sTMETR) + '. '
+    wSpeak += windData
+    sendEvent(name: 'weatherSpeak', value: wSpeak)
 }
 
 String getImgName(Integer wCode, String iconTOD){
