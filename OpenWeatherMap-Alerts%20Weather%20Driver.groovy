@@ -336,6 +336,8 @@ iconLocation = (!iconLocation || iconLocation == null) ? 'https://raw.githubuser
 @Field static final String s9='9.png'
 @Field static final String s39='39.png'
 @Field static final String sDF='°F'
+@Field static final String sDC='°C'
+@Field static final String sDG='°'
 @Field static final String sIMGS5='<img class="cI" src='
 @Field static final String sIMGS8='<img class="cIb" src='
 @Field static final String sTD='<td>'
@@ -1665,7 +1667,7 @@ void setMeasurementMetrics(String distFormat, String pressFormat, String precipF
 	if(temptFormat == 'Fahrenheit (°F)') {
 		tMetric = sDF
 	}else{
-		tMetric = '°C'
+		tMetric = sDC
 	}
 	myUpdData(sTMETR, tMetric)
 }
@@ -1902,6 +1904,7 @@ void SummaryMessage(Boolean SType, String Slast_poll_date, String Slast_poll_tim
 		wSpeak += ((!SforecastTemp || SforecastTemp==sBLK) ? '. ' : SforecastTemp)
         wSpeak += 'It is currently ' + String.format('%3.0f', myGetDataBD(sTEMP)) + myGetData(sTMETR) + ', and feels like ' + String.format('%3.0f', myGetDataBD('feelsLike')) + myGetData(sTMETR) + '. '
         wSpeak += 'There is a ' + windData.substring(0, 1).toLowerCase() + windData.substring(1)
+        wSpeak = wSpeak.replaceAll(sDF, sDG).replaceAll(sDC,sDG)
         sendEvent(name: 'weatherSpeak', value: wSpeak)
     }
 }
